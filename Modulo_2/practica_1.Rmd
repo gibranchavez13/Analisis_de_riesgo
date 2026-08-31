@@ -117,7 +117,7 @@ plot(
 abline(h = 0, lty = 2)
 ```
 
-Hecho 1: Dependencia lineal de los rendimientos
+### Hecho 1: Dependencia lineal de los rendimientos
 
 ```{r}
 acf(
@@ -128,7 +128,9 @@ acf(
 
 La mayoría de las autocorrelaciones de los rendimientos está cerca de cero y dentro de las bandas de significancia. Los pocos picos aislados no forman un patrón persistente, por lo que los rendimientos pasados tienen escasa capacidad predictiva lineal.
 
-Hecho 2: Cluster de volatilidad
+Cabe destacar que, debido al intervalo de confianza del 95% de la gráfica, es esperable que un 5% de los rezagos cruce las bandas por puro ruido estadístico, lo que confirma la ausencia de predictibilidad.
+
+### Hecho 2: Cluster de volatilidad
 
 ```{r acf-squared}
 acf(
@@ -139,7 +141,9 @@ acf(
 
 La ACF de los rendimientos cuadrados presenta algunos coeficientes positivos significativos. Esto sugiere dependencia en la magnitud de los movimientos, aunque los picos son pequeños y poco persistentes, por lo que la evidencia no es contundente.
 
-Hecho 3: Colas pesadas
+Esta aparente debilidad visual puede deberse a que el uso de rendimientos al cuadrado amplifica excesivamente los valores atípicos, lo cual oscurece parcialmente la verdadera señal de persistencia en la autocorrelación.
+
+### Hecho 3: Colas pesadas
 
 ```{r}
 r1 <- as.numeric(na.omit(log_return1))
@@ -178,7 +182,7 @@ legend(
 
 La distribución es más puntiaguda y extrema que la normal. La curtosis de 11.699 y el exceso de curtosis de 8.699 confirman una alta frecuencia de rendimientos extremos.
 
-Hecho 4: Asimetría
+### Hecho 4: Asimetría
 
 ```{r}
 mean_return1 <- mean(r1)
@@ -200,6 +204,8 @@ summary_stats1
 ```
 
 El coeficiente de asimetría es 0.0229, prácticamente cero. Por ello, la distribución puede considerarse aproximadamente simétrica, sin predominio relevante de la cola positiva o negativa.
+
+Aunque tradicionalmente las acciones presentan asimetría negativa por la velocidad de las caídas bursátiles, en esta muestra INTC se mantiene neutral, sin reflejar los choques positivos extremos vistos en otras tecnológicas durante este periodo.
 
 ## NVidia (NVDA)
 
@@ -249,7 +255,7 @@ plot(
 abline(h = 0, lty = 2)
 ```
 
-Hecho 1: Dependencia lineal de los rendimientos
+### Hecho 1: Dependencia lineal de los rendimientos
 
 ```{r}
 acf(
@@ -260,7 +266,9 @@ acf(
 
 Casi todas las autocorrelaciones están próximas a cero y dentro de las bandas. Aunque existe algún pico aislado, no se observa dependencia lineal persistente; los rendimientos anteriores aportan poca información sobre los futuros.
 
-Hecho 2: Cluster de volatilidad
+Este pico aislado es atribuible al ruido estadístico natural (5% de probabilidad) inherente al intervalo de confianza, reafirmando que no hay una señal predictiva real.
+
+### Hecho 2: Cluster de volatilidad
 
 ```{r acf-squared}
 acf(
@@ -271,7 +279,9 @@ acf(
 
 La serie muestra periodos con distinta intensidad de movimientos y la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. Sin embargo, la dependencia no es prolongada, por lo que la evidencia es moderada.
 
-Hecho 3: Colas pesadas
+El método de rendimientos al cuadrado tiende a exagerar los datos extremos (outliers), lo que genera ruido en la gráfica y hace que la dependencia parezca menos prolongada de lo que estructuralmente es.
+
+### Hecho 3: Colas pesadas
 
 ```{r}
 r2 <- as.numeric(na.omit(log_return2))
@@ -310,7 +320,7 @@ legend(
 
 La densidad empírica es más puntiaguda y presenta más valores extremos que la normal. La curtosis de 6.874 y el exceso de 3.874 muestran una distribución leptocúrtica.
 
-Hecho 4: Asimetría
+### Hecho 4: Asimetría
 
 ```{r}
 mean_return2 <- mean(r2)
@@ -332,6 +342,8 @@ summary_stats2
 ```
 
 El coeficiente de asimetría es 0.2409, indicando una cola derecha ligeramente más pronunciada. La distribución permanece relativamente equilibrada, pero los rendimientos positivos extremos tienen algo más de peso.
+
+Este resultado de asimetría positiva contradice el hecho estilizado tradicional (asimetría negativa) debido al auge atípico de la Inteligencia Artificial a partir de 2022, el cual generó sorpresas positivas continuas para la empresa.
 
 ## Microsoft (MSFT)
 
@@ -381,7 +393,7 @@ plot(
 abline(h = 0, lty = 2)
 ```
 
-Hecho 1: Dependencia lineal de los rendimientos
+### Hecho 1: Dependencia lineal de los rendimientos
 
 ```{r}
 acf(
@@ -392,7 +404,9 @@ acf(
 
 La mayoría de las autocorrelaciones se encuentra cerca de cero y dentro de las bandas. Los picos aislados no muestran continuidad, por lo que existe poca predictibilidad lineal en los rendimientos.
 
-Hecho 2: Cluster de volatilidad
+Los pocos picos que superan las bandas representan el 5% de ruido aleatorio esperado por los intervalos de confianza, confirmando la débil predictibilidad lineal.
+
+### Hecho 2: Cluster de volatilidad
 
 ```{r acf-squared}
 acf(
@@ -403,7 +417,9 @@ acf(
 
 La gráfica muestra periodos tranquilos y turbulentos, mientras que la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. La magnitud de los movimientos presenta dependencia, aunque no es persistentemente elevada.
 
-Hecho 3: Colas pesadas
+Esta caída rápida en la persistencia visual es un efecto secundario de utilizar rendimientos al cuadrado, una métrica que amplifica el ruido de los movimientos extremos y puede subestimar visualmente el clúster.
+
+### Hecho 3: Colas pesadas
 
 ```{r}
 r3 <- as.numeric(na.omit(log_return3))
@@ -442,7 +458,7 @@ legend(
 
 La distribución empírica es más puntiaguda y extrema que la normal. La curtosis de 9.257 y el exceso de 6.257 muestran una frecuencia considerablemente mayor de rendimientos extremos.
 
-Hecho 4: Asimetría
+### Hecho 4: Asimetría
 
 ```{r}
 mean_return3 <- mean(r3)
@@ -465,10 +481,34 @@ summary_stats3
 
 El coeficiente de asimetría es 0.3653, lo que indica una cola derecha relativamente más pronunciada. En esta muestra, los rendimientos positivos extremos tienen mayor peso que los negativos.
 
+Al igual que con NVDA, esta asimetría positiva es inusual frente a la literatura clásica, pero captura directamente la concentración de ganancias extraordinarias impulsadas por el sector de la IA durante este periodo.
+
 # 3. Auditoría con IA
 
-## Respuesta de la IA al prompt usado
+## Respuesta de la IA al prompt utilizado
 
+Tu análisis es metodológicamente sólido y tus interpretaciones estadísticas están directamente respaldadas por los resultados de tu código en R.
 
+### Aciertos metodológicos
+
+- La evaluación de la débil dependencia lineal mediante la función de autocorrelación (ACF) de los rendimientos logarítmicos es precisa. Tu deducción sobre la falta de capacidad predictiva lineal es correcta.
+
+- El cálculo para demostrar las colas pesadas es exacto. Al restar 3 a la curtosis bruta, demostraste correctamente el exceso de curtosis ($8.699$ para INTC, $3.874$ para NVDA y $6.257$ para MSFT), confirmando distribuciones leptocúrticas.
+
+- El uso de los rendimientos al cuadrado para detectar el agrupamiento de volatilidad es un procedimiento estándar en econometría financiera.
+
+### Áreas de oportunidad e interpretación
+
+- **Contexto de la asimetría:** clásicamente, uno de los hechos estilizados de los rendimientos de acciones es la presencia de asimetría negativa, ya que los colapsos del mercado suelen ser más rápidos y violentos que las subidas. En tu análisis encontraste asimetría positiva en NVDA ($0.2409$) y MSFT ($0.3653$), mientras que INTC presenta una asimetría cercana a cero ($0.0229$). Metodológicamente, el análisis es correcto, pero la interpretación puede enriquecerse indicando que este resultado corresponde específicamente a la muestra analizada y no necesariamente contradice el comportamiento histórico general del mercado.
+
+- **Robustez del agrupamiento de volatilidad:** concluiste que la evidencia es moderada porque los picos positivos en la ACF de los rendimientos al cuadrado son pequeños. Una posible mejora metodológica sería complementar el análisis con la ACF de los rendimientos absolutos, $|r|$. Los rendimientos al cuadrado amplifican considerablemente los valores atípicos, lo que puede debilitar visualmente la señal de persistencia en la ACF.
+
+- **Picos aislados en la ACF:** señalas correctamente que existen algunos picos aislados en la dependencia lineal que no forman un patrón. También puede mencionarse que, al utilizar bandas de confianza del $95\%$, algunos rezagos pueden superar dichas bandas simplemente por variabilidad muestral. Por ello, la existencia de uno o pocos picos aislados no necesariamente implica capacidad predictiva.
+
+## Oportunidades de mejora
+
+- Lo único que me recomendó la IA, es explicar más las interpretaciones, ya que mencionó lo siguiente:
+
+"Tu análisis original no tiene errores de cálculo matemático, sino ausencias de contexto estadístico y teórico. El 'fallo' en tus interpretaciones iniciales es que se limitan a describir literalmente lo que ves en las gráficas o los resultados, pero omiten explicar el mecanismo matemático o económico que justifica esas observaciones."
 
 # 4. Conclusiones
