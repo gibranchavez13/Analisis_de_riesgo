@@ -1,0 +1,474 @@
+---
+title: 'Práctica 1: Hechos estilizados sobre el comportamiento del precio y el rendimiento
+  de los activos'
+author: "Gibrán Leonardo Chávez González"
+date: "2026-08-31"
+output: html_document
+---
+
+# 1. Introducción
+
+# 2. Análisis de los hechos estilizados
+
+Para esta práctica, se usarán los siguientes activos: *- Intel (INTC) - NVidia (NVDA) - Microsoft (MSFT)*
+
+Además, hay 4 hechos estilizados que veremos si se cumplen al analizar los siguientes activos, que son los siguientes:
+
+**Hecho 1: Dependencia lineal de los rendimientos**
+
+El rendimiento de ayer normalmente ofrece muy poca información para predecir directamente el rendimiento de hoy.
+
+Por ejemplo, que una acción haya subido ayer no significa necesariamente que hoy volverá a subir ni que hoy bajará. Matemáticamente, esto se expresa como:
+
+$$\operatorname{Corr}(r_t,r_{t-1}) \approx 0.$$
+
+Sin embargo, una correlación cercana a cero no significa independencia total. Puede haber otras relaciones menos evidentes, especialmente en la magnitud de los movimientos.
+
+Es difícil predecir la dirección del próximo rendimiento observando únicamente los rendimientos anteriores.
+
+**Hecho 2: Cluster de volatilidad**
+
+Los periodos turbulentos suelen aparecer juntos, al igual que los periodos tranquilos.
+
+Cuando ocurre un movimiento grande, ya sea positivo o negativo, aumenta la posibilidad de que posteriormente aparezcan otros movimientos grandes. De manera similar, movimientos pequeños suelen ser seguidos por movimientos pequeños.
+
+Por ejemplo:
+
+$$-7\%, \qquad +5\%, \qquad -6\%, \qquad +4\%$$
+
+indica mucha volatilidad, aunque los signos sean diferentes. Lo persistente no es la dirección, sino la magnitud.
+
+No sabemos necesariamente si el mercado subirá o bajará, pero sí podemos detectar épocas en las que se mueve mucho o poco.
+
+**Hecho 3: Colas pesadas**
+
+Los rendimientos extremos suceden con mayor frecuencia de la que pronosticaría una distribución normal.
+
+Si utilizamos una distribución normal, movimientos como una caída de $8\%$ o $10\%$ podrían parecer extremadamente improbables. En los mercados reales, estos acontecimientos ocurren más veces de lo esperado.
+
+Por eso se dice que la distribución tiene colas pesadas: hay más probabilidad acumulada en los extremos. También puede ser leptocúrtica, con una mayor concentración cerca del centro y, simultáneamente, más observaciones extremas.
+
+Los días aparentemente normales son muy comunes, pero las sorpresas enormes también ocurren con más frecuencia de la que sugiere el modelo normal.
+
+La consecuencia es importante, porque suponer normalidad puede llevarnos a subestimar el riesgo de pérdidas extraordinarias.
+
+**Hecho 4: Asimetría**
+
+Las ganancias y las pérdidas extremas no necesariamente tienen la misma probabilidad ni la misma magnitud.
+
+Una distribución con asimetría negativa presenta una cola izquierda más larga. Esto significa que existe una posibilidad relativamente mayor de observar pérdidas negativas muy grandes.
+
+Dos inversiones pueden tener la misma media y la misma varianza, pero diferentes riesgos. Una podría presentar fluctuaciones equilibradas, mientras que otra tendría normalmente resultados moderados, pero ocasionalmente sufriría una pérdida enorme.
+
+Ganar mucho y perder mucho no son necesariamente riesgos equivalentes; la forma del lado negativo de la distribución importa especialmente para un inversionista.
+
+Ahora importamos las librerías con las que vamos a trabajar:
+
+```{r}
+library(quantmod)
+library(moments)
+```
+
+## Intel (INTC)
+
+1.  Descarga de precios
+
+```{r}
+ticker1 <- 'INTC'
+
+getSymbols(
+  ticker1,
+  src = 'yahoo',
+  from = '2022-01-01'
+)
+
+price1 <- Ad(get(ticker1))
+head(price1)
+```
+
+2.  Graficar la serie de precios
+
+```{r}
+plot(
+  price1,
+  main = paste(ticker1, '- Adjusted Price'),
+  ylab = 'Price',
+  xlab = ''
+)
+```
+
+3.  Rendimiento simple y logarítmico
+
+```{r returns}
+simple_return1 <- dailyReturn(na.omit(price1), type = 'arithmetic')
+log_return1 <- dailyReturn(na.omit(price1), type = 'log')
+
+head(cbind(simple_return1, log_return1))
+```
+
+```{r return-plot}
+plot(
+  log_return1,
+  main = paste(ticker1, '- Daily Log Returns'),
+  ylab = 'Log Return',
+  xlab = ''
+)
+
+abline(h = 0, lty = 2)
+```
+
+Hecho 1: Dependencia lineal de los rendimientos
+
+```{r}
+acf(
+  na.omit(log_return1),
+  main = 'ACF of Log Returns'
+)
+```
+
+La mayoría de las autocorrelaciones de los rendimientos está cerca de cero y dentro de las bandas de significancia. Los pocos picos aislados no forman un patrón persistente, por lo que los rendimientos pasados tienen escasa capacidad predictiva lineal.
+
+Hecho 2: Cluster de volatilidad
+
+```{r acf-squared}
+acf(
+  na.omit(log_return1)^2,
+  main = 'ACF of Squared Returns'
+)
+```
+
+La ACF de los rendimientos cuadrados presenta algunos coeficientes positivos significativos. Esto sugiere dependencia en la magnitud de los movimientos, aunque los picos son pequeños y poco persistentes, por lo que la evidencia no es contundente.
+
+Hecho 3: Colas pesadas
+
+```{r}
+r1 <- as.numeric(na.omit(log_return1))
+
+hist(
+  r1,
+  breaks = 50,
+  probability = TRUE,
+  main = paste(ticker1, '- Distribution of Log Returns'),
+  xlab = 'Log Return'
+)
+
+lines(
+  density(r1),
+  lwd = 2
+)
+
+mu_hat1 <- mean(r1)
+sigma_hat1 <- sd(r1)
+
+curve(
+  dnorm(x, mean = mu_hat1, sd = sigma_hat1),
+  add = TRUE,
+  lwd = 2,
+  lty = 2
+)
+
+legend(
+  'topright',
+  legend = c('Empirical density', 'Normal benchmark'),
+  lty = c(2, 2),
+  lwd = c(2, 2),
+  bty = 'n'
+)
+```
+
+La distribución es más puntiaguda y extrema que la normal. La curtosis de 11.699 y el exceso de curtosis de 8.699 confirman una alta frecuencia de rendimientos extremos.
+
+Hecho 4: Asimetría
+
+```{r}
+mean_return1 <- mean(r1)
+sd_return1 <- sd(r1)
+skew_return1 <- skewness(r1)
+kurt_return1 <- kurtosis(r1)
+
+excess_kurtosis1 <- kurt_return1 - 3
+
+summary_stats1 <- data.frame(
+  Mean = mean_return1,
+  SD = sd_return1,
+  Skwenees = skew_return1,
+  Kurtosis = kurt_return1,
+  Excess_Kurtosis = excess_kurtosis1
+)
+
+summary_stats1
+```
+
+El coeficiente de asimetría es 0.0229, prácticamente cero. Por ello, la distribución puede considerarse aproximadamente simétrica, sin predominio relevante de la cola positiva o negativa.
+
+## NVidia (NVDA)
+
+1.  Descarga de precios
+
+```{r}
+ticker2 <- 'NVDA'
+
+getSymbols(
+  ticker2,
+  src = 'yahoo',
+  from = '2022-01-01'
+)
+
+price2 <- Ad(get(ticker2))
+head(price2)
+```
+
+2.  Graficar la serie de precios
+
+```{r}
+plot(
+  price2,
+  main = paste(ticker2, '- Adjusted Price'),
+  ylab = 'Price',
+  xlab = ''
+)
+```
+
+3.  Rendimiento simple y logarítmico
+
+```{r returns}
+simple_return2 <- dailyReturn(na.omit(price2), type = 'arithmetic')
+log_return2 <- dailyReturn(na.omit(price2), type = 'log')
+
+head(cbind(simple_return2, log_return2))
+```
+
+```{r return-plot}
+plot(
+  log_return2,
+  main = paste(ticker2, '- Daily Log Returns'),
+  ylab = 'Log Return',
+  xlab = ''
+)
+
+abline(h = 0, lty = 2)
+```
+
+Hecho 1: Dependencia lineal de los rendimientos
+
+```{r}
+acf(
+  na.omit(log_return2),
+  main = 'ACF of Log Returns'
+)
+```
+
+Casi todas las autocorrelaciones están próximas a cero y dentro de las bandas. Aunque existe algún pico aislado, no se observa dependencia lineal persistente; los rendimientos anteriores aportan poca información sobre los futuros.
+
+Hecho 2: Cluster de volatilidad
+
+```{r acf-squared}
+acf(
+  na.omit(log_return2)^2,
+  main = 'ACF of Squared Returns'
+)
+```
+
+La serie muestra periodos con distinta intensidad de movimientos y la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. Sin embargo, la dependencia no es prolongada, por lo que la evidencia es moderada.
+
+Hecho 3: Colas pesadas
+
+```{r}
+r2 <- as.numeric(na.omit(log_return2))
+
+hist(
+  r2,
+  breaks = 50,
+  probability = TRUE,
+  main = paste(ticker2, '- Distribution of Log Returns'),
+  xlab = 'Log Return'
+)
+
+lines(
+  density(r2),
+  lwd = 2
+)
+
+mu_hat2 <- mean(r2)
+sigma_hat2 <- sd(r2)
+
+curve(
+  dnorm(x, mean = mu_hat2, sd = sigma_hat2),
+  add = TRUE,
+  lwd = 2,
+  lty = 2
+)
+
+legend(
+  'topright',
+  legend = c('Empirical density', 'Normal benchmark'),
+  lty = c(2, 2),
+  lwd = c(2, 2),
+  bty = 'n'
+)
+```
+
+La densidad empírica es más puntiaguda y presenta más valores extremos que la normal. La curtosis de 6.874 y el exceso de 3.874 muestran una distribución leptocúrtica.
+
+Hecho 4: Asimetría
+
+```{r}
+mean_return2 <- mean(r2)
+sd_return2 <- sd(r2)
+skew_return2 <- skewness(r2)
+kurt_return2 <- kurtosis(r2)
+
+excess_kurtosis2 <- kurt_return2 - 3
+
+summary_stats2 <- data.frame(
+  Mean = mean_return2,
+  SD = sd_return2,
+  Skwenees = skew_return2,
+  Kurtosis = kurt_return2,
+  Excess_Kurtosis = excess_kurtosis2
+)
+
+summary_stats2
+```
+
+El coeficiente de asimetría es 0.2409, indicando una cola derecha ligeramente más pronunciada. La distribución permanece relativamente equilibrada, pero los rendimientos positivos extremos tienen algo más de peso.
+
+## Microsoft (MSFT)
+
+1.  Descarga de precios
+
+```{r}
+ticker3 <- 'MSFT'
+
+getSymbols(
+  ticker3,
+  src = 'yahoo',
+  from = '2022-01-01'
+)
+
+price3 <- Ad(get(ticker3))
+head(price3)
+```
+
+2.  Graficar la serie de precios
+
+```{r}
+plot(
+  price3,
+  main = paste(ticker3, '- Adjusted Price'),
+  ylab = 'Price',
+  xlab = ''
+)
+```
+
+3.  Rendimiento simple y logarítmico
+
+```{r returns}
+simple_return3 <- dailyReturn(na.omit(price3), type = 'arithmetic')
+log_return3 <- dailyReturn(na.omit(price3), type = 'log')
+
+head(cbind(simple_return3, log_return3))
+```
+
+```{r return-plot}
+plot(
+  log_return3,
+  main = paste(ticker3, '- Daily Log Returns'),
+  ylab = 'Log Return',
+  xlab = ''
+)
+
+abline(h = 0, lty = 2)
+```
+
+Hecho 1: Dependencia lineal de los rendimientos
+
+```{r}
+acf(
+  na.omit(log_return3),
+  main = 'ACF of Log Returns'
+)
+```
+
+La mayoría de las autocorrelaciones se encuentra cerca de cero y dentro de las bandas. Los picos aislados no muestran continuidad, por lo que existe poca predictibilidad lineal en los rendimientos.
+
+Hecho 2: Cluster de volatilidad
+
+```{r acf-squared}
+acf(
+  na.omit(log_return3)^2,
+  main = 'ACF of Squared Returns'
+)
+```
+
+La gráfica muestra periodos tranquilos y turbulentos, mientras que la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. La magnitud de los movimientos presenta dependencia, aunque no es persistentemente elevada.
+
+Hecho 3: Colas pesadas
+
+```{r}
+r3 <- as.numeric(na.omit(log_return3))
+
+hist(
+  r3,
+  breaks = 50,
+  probability = TRUE,
+  main = paste(ticker3, '- Distribution of Log Returns'),
+  xlab = 'Log Return'
+)
+
+lines(
+  density(r3),
+  lwd = 2
+)
+
+mu_hat3 <- mean(r3)
+sigma_hat3 <- sd(r3)
+
+curve(
+  dnorm(x, mean = mu_hat3, sd = sigma_hat3),
+  add = TRUE,
+  lwd = 2,
+  lty = 2
+)
+
+legend(
+  'topright',
+  legend = c('Empirical density', 'Normal benchmark'),
+  lty = c(2, 2),
+  lwd = c(2, 2),
+  bty = 'n'
+)
+```
+
+La distribución empírica es más puntiaguda y extrema que la normal. La curtosis de 9.257 y el exceso de 6.257 muestran una frecuencia considerablemente mayor de rendimientos extremos.
+
+Hecho 4: Asimetría
+
+```{r}
+mean_return3 <- mean(r3)
+sd_return3 <- sd(r3)
+skew_return3 <- skewness(r3)
+kurt_return3 <- kurtosis(r3)
+
+excess_kurtosis3 <- kurt_return3 - 3
+
+summary_stats3 <- data.frame(
+  Mean = mean_return3,
+  SD = sd_return3,
+  Skwenees = skew_return3,
+  Kurtosis = kurt_return3,
+  Excess_Kurtosis = excess_kurtosis3
+)
+
+summary_stats3
+```
+
+El coeficiente de asimetría es 0.3653, lo que indica una cola derecha relativamente más pronunciada. En esta muestra, los rendimientos positivos extremos tienen mayor peso que los negativos.
+
+# 3. Auditoría con IA
+
+## Respuesta de la IA al prompt usado
+
+
+
+# 4. Conclusiones
