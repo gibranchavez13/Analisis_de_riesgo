@@ -109,14 +109,14 @@ plot(
 
 3.  Rendimiento simple y logarítmico
 
-```{r returns}
+```{r returns1}
 simple_return1 <- dailyReturn(na.omit(price1), type = 'arithmetic')
 log_return1 <- dailyReturn(na.omit(price1), type = 'log')
 
 head(cbind(simple_return1, log_return1))
 ```
 
-```{r return-plot}
+```{r return-plot1}
 plot(
   log_return1,
   main = paste(ticker1, '- Daily Log Returns'),
@@ -144,7 +144,7 @@ Cabe destacar que, debido al intervalo de confianza del 95% de la gráfica, es e
 
 ### Hecho 2: Cluster de volatilidad
 
-```{r acf-squared}
+```{r acf-squared1}
 acf(
   na.omit(log_return1)^2,
   main = 'ACF of Squared Returns'
@@ -255,14 +255,14 @@ plot(
 
 3.  Rendimiento simple y logarítmico
 
-```{r returns}
+```{r returns2}
 simple_return2 <- dailyReturn(na.omit(price2), type = 'arithmetic')
 log_return2 <- dailyReturn(na.omit(price2), type = 'log')
 
 head(cbind(simple_return2, log_return2))
 ```
 
-```{r return-plot}
+```{r return-plot2}
 plot(
   log_return2,
   main = paste(ticker2, '- Daily Log Returns'),
@@ -290,7 +290,7 @@ Este pico aislado es atribuible al ruido estadístico natural (5% de probabilida
 
 ### Hecho 2: Cluster de volatilidad
 
-```{r acf-squared}
+```{r acf-squared2}
 acf(
   na.omit(log_return2)^2,
   main = 'ACF of Squared Returns'
@@ -401,14 +401,14 @@ plot(
 
 3.  Rendimiento simple y logarítmico
 
-```{r returns}
+```{r returns3}
 simple_return3 <- dailyReturn(na.omit(price3), type = 'arithmetic')
 log_return3 <- dailyReturn(na.omit(price3), type = 'log')
 
 head(cbind(simple_return3, log_return3))
 ```
 
-```{r return-plot}
+```{r return-plot3}
 plot(
   log_return3,
   main = paste(ticker3, '- Daily Log Returns'),
@@ -436,7 +436,7 @@ Los pocos picos que superan las bandas representan el 5% de ruido aleatorio espe
 
 ### Hecho 2: Cluster de volatilidad
 
-```{r acf-squared}
+```{r acf-squared3}
 acf(
   na.omit(log_return3)^2,
   main = 'ACF of Squared Returns'
