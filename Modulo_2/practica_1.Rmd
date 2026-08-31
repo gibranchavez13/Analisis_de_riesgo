@@ -8,8 +8,13 @@ output: html_document
 
 # 1. Introducción
 
+::: {style="text-align: justify;"}
+En esta práctica se analizará el comportamiento de los precios ajustados y los rendimientos diarios de `Intel (INTC)`, `Nvidia (NVDA)` y `Microsoft (MSFT)` desde enero de 2022. Estos activos fueron seleccionados porque pertenecen al sector tecnológico, pero presentan modelos de negocio y perfiles de riesgo diferentes: Intel se concentra en la fabricación de semiconductores, Nvidia destaca por su crecimiento asociado al cómputo y la inteligencia artificial, mientras que Microsoft posee operaciones más diversificadas. A partir de los rendimientos logarítmicos se evaluarán cuatro hechos estilizados: débil dependencia lineal, agrupamiento de volatilidad, colas pesadas y asimetría. Para ello se utilizarán funciones de autocorrelación, rendimientos cuadrados, distribuciones empíricas y medidas de curtosis y asimetría. La comparación permitirá identificar características comunes y diferencias relevantes para la medición del riesgo financiero.
+:::
+
 # 2. Análisis de los hechos estilizados
 
+::: {style="text-align: justify;"}
 Para esta práctica, se usarán los siguientes activos: *- Intel (INTC) - NVidia (NVDA) - Microsoft (MSFT)*
 
 Además, hay 4 hechos estilizados que veremos si se cumplen al analizar los siguientes activos, que son los siguientes:
@@ -61,6 +66,7 @@ Una distribución con asimetría negativa presenta una cola izquierda más larga
 Dos inversiones pueden tener la misma media y la misma varianza, pero diferentes riesgos. Una podría presentar fluctuaciones equilibradas, mientras que otra tendría normalmente resultados moderados, pero ocasionalmente sufriría una pérdida enorme.
 
 Ganar mucho y perder mucho no son necesariamente riesgos equivalentes; la forma del lado negativo de la distribución importa especialmente para un inversionista.
+:::
 
 Ahora importamos las librerías con las que vamos a trabajar:
 
@@ -68,6 +74,10 @@ Ahora importamos las librerías con las que vamos a trabajar:
 library(quantmod)
 library(moments)
 ```
+
+::: {style="text-align: justify;"}
+Se eligió el periodo de estudio desde el 1 de enero de 2022 porque ofrece suficientes observaciones recientes y comparables para los tres activos y porque el mismo prediodo de análisis para los tres, para que sea más equitativo. Además, incluye etapas de alta volatilidad, corrección y crecimiento tecnológico, lo que permite identificar con mayor claridad los hechos estilizados de sus rendimientos.
+:::
 
 ## Intel (INTC)
 
@@ -126,9 +136,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 La mayoría de las autocorrelaciones de los rendimientos está cerca de cero y dentro de las bandas de significancia. Los pocos picos aislados no forman un patrón persistente, por lo que los rendimientos pasados tienen escasa capacidad predictiva lineal.
 
 Cabe destacar que, debido al intervalo de confianza del 95% de la gráfica, es esperable que un 5% de los rezagos cruce las bandas por puro ruido estadístico, lo que confirma la ausencia de predictibilidad.
+:::
 
 ### Hecho 2: Cluster de volatilidad
 
@@ -139,9 +151,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 La ACF de los rendimientos cuadrados presenta algunos coeficientes positivos significativos. Esto sugiere dependencia en la magnitud de los movimientos, aunque los picos son pequeños y poco persistentes, por lo que la evidencia no es contundente.
 
 Esta aparente debilidad visual puede deberse a que el uso de rendimientos al cuadrado amplifica excesivamente los valores atípicos, lo cual oscurece parcialmente la verdadera señal de persistencia en la autocorrelación.
+:::
 
 ### Hecho 3: Colas pesadas
 
@@ -180,7 +194,9 @@ legend(
 )
 ```
 
+::: {style="text-align: justify;"}
 La distribución es más puntiaguda y extrema que la normal. La curtosis de 11.699 y el exceso de curtosis de 8.699 confirman una alta frecuencia de rendimientos extremos.
+:::
 
 ### Hecho 4: Asimetría
 
@@ -203,9 +219,11 @@ summary_stats1 <- data.frame(
 summary_stats1
 ```
 
+::: {style="text-align: justify;"}
 El coeficiente de asimetría es 0.0229, prácticamente cero. Por ello, la distribución puede considerarse aproximadamente simétrica, sin predominio relevante de la cola positiva o negativa.
 
 Aunque tradicionalmente las acciones presentan asimetría negativa por la velocidad de las caídas bursátiles, en esta muestra INTC se mantiene neutral, sin reflejar los choques positivos extremos vistos en otras tecnológicas durante este periodo.
+:::
 
 ## NVidia (NVDA)
 
@@ -264,9 +282,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 Casi todas las autocorrelaciones están próximas a cero y dentro de las bandas. Aunque existe algún pico aislado, no se observa dependencia lineal persistente; los rendimientos anteriores aportan poca información sobre los futuros.
 
 Este pico aislado es atribuible al ruido estadístico natural (5% de probabilidad) inherente al intervalo de confianza, reafirmando que no hay una señal predictiva real.
+:::
 
 ### Hecho 2: Cluster de volatilidad
 
@@ -277,9 +297,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 La serie muestra periodos con distinta intensidad de movimientos y la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. Sin embargo, la dependencia no es prolongada, por lo que la evidencia es moderada.
 
 El método de rendimientos al cuadrado tiende a exagerar los datos extremos (outliers), lo que genera ruido en la gráfica y hace que la dependencia parezca menos prolongada de lo que estructuralmente es.
+:::
 
 ### Hecho 3: Colas pesadas
 
@@ -318,7 +340,9 @@ legend(
 )
 ```
 
+::: {style="text-align: justify;"}
 La densidad empírica es más puntiaguda y presenta más valores extremos que la normal. La curtosis de 6.874 y el exceso de 3.874 muestran una distribución leptocúrtica.
+:::
 
 ### Hecho 4: Asimetría
 
@@ -341,9 +365,11 @@ summary_stats2 <- data.frame(
 summary_stats2
 ```
 
+::: {style="text-align: justify;"}
 El coeficiente de asimetría es 0.2409, indicando una cola derecha ligeramente más pronunciada. La distribución permanece relativamente equilibrada, pero los rendimientos positivos extremos tienen algo más de peso.
 
 Este resultado de asimetría positiva contradice el hecho estilizado tradicional (asimetría negativa) debido al auge atípico de la Inteligencia Artificial a partir de 2022, el cual generó sorpresas positivas continuas para la empresa.
+:::
 
 ## Microsoft (MSFT)
 
@@ -402,9 +428,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 La mayoría de las autocorrelaciones se encuentra cerca de cero y dentro de las bandas. Los picos aislados no muestran continuidad, por lo que existe poca predictibilidad lineal en los rendimientos.
 
 Los pocos picos que superan las bandas representan el 5% de ruido aleatorio esperado por los intervalos de confianza, confirmando la débil predictibilidad lineal.
+:::
 
 ### Hecho 2: Cluster de volatilidad
 
@@ -415,9 +443,11 @@ acf(
 )
 ```
 
+::: {style="text-align: justify;"}
 La gráfica muestra periodos tranquilos y turbulentos, mientras que la ACF de rendimientos cuadrados contiene algunos picos positivos significativos. La magnitud de los movimientos presenta dependencia, aunque no es persistentemente elevada.
 
 Esta caída rápida en la persistencia visual es un efecto secundario de utilizar rendimientos al cuadrado, una métrica que amplifica el ruido de los movimientos extremos y puede subestimar visualmente el clúster.
+:::
 
 ### Hecho 3: Colas pesadas
 
@@ -456,7 +486,9 @@ legend(
 )
 ```
 
+::: {style="text-align: justify;"}
 La distribución empírica es más puntiaguda y extrema que la normal. La curtosis de 9.257 y el exceso de 6.257 muestran una frecuencia considerablemente mayor de rendimientos extremos.
+:::
 
 ### Hecho 4: Asimetría
 
@@ -479,14 +511,17 @@ summary_stats3 <- data.frame(
 summary_stats3
 ```
 
+::: {style="text-align: justify;"}
 El coeficiente de asimetría es 0.3653, lo que indica una cola derecha relativamente más pronunciada. En esta muestra, los rendimientos positivos extremos tienen mayor peso que los negativos.
 
 Al igual que con NVDA, esta asimetría positiva es inusual frente a la literatura clásica, pero captura directamente la concentración de ganancias extraordinarias impulsadas por el sector de la IA durante este periodo.
+:::
 
 # 3. Auditoría con IA
 
 ## Respuesta de la IA al prompt utilizado
 
+::: {style="text-align: justify;"}
 Tu análisis es metodológicamente sólido y tus interpretaciones estadísticas están directamente respaldadas por los resultados de tu código en R.
 
 ### Aciertos metodológicos
@@ -504,11 +539,18 @@ Tu análisis es metodológicamente sólido y tus interpretaciones estadísticas 
 - **Robustez del agrupamiento de volatilidad:** concluiste que la evidencia es moderada porque los picos positivos en la ACF de los rendimientos al cuadrado son pequeños. Una posible mejora metodológica sería complementar el análisis con la ACF de los rendimientos absolutos, $|r|$. Los rendimientos al cuadrado amplifican considerablemente los valores atípicos, lo que puede debilitar visualmente la señal de persistencia en la ACF.
 
 - **Picos aislados en la ACF:** señalas correctamente que existen algunos picos aislados en la dependencia lineal que no forman un patrón. También puede mencionarse que, al utilizar bandas de confianza del $95\%$, algunos rezagos pueden superar dichas bandas simplemente por variabilidad muestral. Por ello, la existencia de uno o pocos picos aislados no necesariamente implica capacidad predictiva.
+:::
 
 ## Oportunidades de mejora
 
+::: {style="text-align: justify;"}
 - Lo único que me recomendó la IA, es explicar más las interpretaciones, ya que mencionó lo siguiente:
 
 "Tu análisis original no tiene errores de cálculo matemático, sino ausencias de contexto estadístico y teórico. El 'fallo' en tus interpretaciones iniciales es que se limitan a describir literalmente lo que ves en las gráficas o los resultados, pero omiten explicar el mecanismo matemático o económico que justifica esas observaciones."
+:::
 
 # 4. Conclusiones
+
+::: {style="text-align: justify;"}
+Los tres activos presentan débil dependencia lineal, pues sus rendimientos pasados ofrecen poca capacidad para predecir los rendimientos futuros. También muestran evidencia moderada de agrupamiento de volatilidad, con periodos de calma y turbulencia que tienden a concentrarse temporalmente. En los tres casos, las distribuciones presentan colas más pesadas que una distribución normal. Intel registra la mayor curtosis y, por tanto, la frecuencia relativa más elevada de rendimientos extremos. Microsoft ocupa una posición intermedia, mientras que Nvidia presenta la menor curtosis de los tres, aunque todavía superior a la normal. La principal diferencia aparece en la asimetría de las distribuciones. Intel es aproximadamente simétrica, mientras que Nvidia muestra asimetría positiva leve y Microsoft una asimetría positiva más marcada. Por ello, la dirección y el peso de los eventos extremos no son iguales para los tres activos. Estos resultados indican que la volatilidad constante y la normalidad son aproximaciones insuficientes para describir completamente sus rendimientos. Utilizar únicamente la media y la desviación estándar podría subestimar la frecuencia y magnitud de pérdidas o ganancias extraordinarias. La medición del riesgo debería incorporar volatilidad variable, distribuciones con colas pesadas y un análisis más específico.
+:::
