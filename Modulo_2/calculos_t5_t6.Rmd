@@ -1,0 +1,570 @@
+---
+title: "calculos_T5_T6"
+author: "Gibrán Leonardo Chávez González"
+date: "2026-09-19"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+library(quantmod); library(moments); library(tseries)
+```
+
+# Tarea 5
+
+## **Problema 4. Aproximación local de un precio**
+
+Suponga que un activo tiene precio actual
+
+$$
+S_0 = 80,
+$$
+
+drift anual
+
+$$
+\mu = 0.12,
+$$
+
+y volatilidad anual
+
+$$
+\sigma = 0.25.
+$$
+
+Utiliza la aproximación local
+
+$$
+\Delta S \approx \mu S_0 \Delta t + \sigma S_0 \sqrt{\Delta t}\, Z.
+$$
+
+**a)** Para un horizonte de 10 días de cotización, identifica $S_0$, $\mu$, $\sigma$ y $\Delta t$.
+
+```{r}
+So <- 80; mu <- 0.12; sigma <- 0.25; delta_t <- 10/252
+```
+
+
+**b)** Determina
+
+$$
+E[\Delta S] \qquad \text{y} \qquad Var(\Delta S).
+$$
+Recordemos que:
+
+$$E[\Delta S] = \mu S_0 T$$
+
+$$\operatorname{Var}(\Delta S) = \sigma^2 S_0 ^2 T$$
+```{r}
+E_delta_s <- mu * So * delta_t
+Var_delta_t <- sigma^2 * So^2 * delta_t
+
+E_delta_s; Var_delta_t
+```
+
+**c)** Calcula
+
+$$
+P(\Delta S > 0).
+$$
+```{r}
+delta <- 0 
+
+Zo <- (delta - E_delta_s) / sqrt(Var_delta_t)
+Zo
+```
+```{r}
+pnorm(
+  Zo, 
+  mean = 0, 
+  sd = 1, 
+  lower.tail = FALSE
+)
+```
+
+
+Interpreta el resultado en términos del precio del activo.
+
+**d)** Calcula la probabilidad de que el precio aumente al menos 2 % durante los próximos 10 días:
+
+$$
+P(S_{10} > 1.02 S_0).
+$$
+
+Trabaja con la aproximación local.
+
+```{r}
+delta <- (1.02 * So) - So
+
+Zo <- (delta - E_delta_s) / sqrt(Var_delta_t)
+Zo; 
+```
+```{r}
+pnorm(
+  Zo, 
+  mean = 0, 
+  sd = 1, 
+  lower.tail = FALSE
+)
+```
+
+**e)** Construye un **intervalo de probabilidad aproximado del 90 %** para el precio dentro de 10 días.
+
+Creamos una función para el intervalo de confianza aproximado:
+
+**Forma aproximada: media del precio ± margen**
+
+Parte de:
+
+$$
+S_T \approx S_0 + \mu S_0 T + \sigma S_0 \sqrt{T}\, Z.
+$$
+
+Por tanto, el intervalo es:
+
+$$
+\boxed{\left[ S_0 + \mu S_0 T - z \sigma S_0 \sqrt{T},\ S_0 + \mu S_0 T + z \sigma S_0 \sqrt{T} \right]}
+$$
+
+```{r}
+intervalo_confianza_a <- function(So, mu, sigma, delta_t, nc) {
+  Esperanza <- mu * So * delta_t
+  Var_delta_t <- sigma^2 * So^2 * delta_t
+  desv <- sqrt(Var_delta_t)
+  z_nc = qnorm(1 - (1 - nc) / 2)
+  
+  c(
+    inferior = So + Esperanza - z_nc * desv,
+    superior = So + Esperanza + z_nc * desv
+  )
+}
+```
+
+
+
+```{r}
+nc <- 0.9
+
+intervalo_confianza_a(
+  So = So,
+  mu = mu,
+  sigma = sigma,
+  delta_t = delta_t,
+  nc = nc
+)
+```
+
+## **Problema 5. Comparar probabilidades**
+
+Un activo tiene
+
+$$
+S_0 = 13.44, \qquad \mu = 0.51, \qquad \sigma = 0.32,
+$$
+
+con $\mu$ y $\sigma$ anualizados.
+
+**a)** Escribe la SDE del modelo:
+
+$$
+dS_t = \mu S_t\, dt + \sigma S_t\, dW_t \Rightarrow dS_t = 0.51 S_t\, dt + 0.32 S_t\, dW_t
+$$
+
+**b)** Utilizando la aproximación local, calcula la probabilidad de que el activo **disminuya** durante los próximos 10 días de cotización.
+
+```{r}
+So <- 13.44; mu <- 0.51; sigma <- 0.32; delta_t <- 10/252
+```
+
+```{r}
+E_st <- mu * So * delta_t
+Var_st <- sigma^2 * So^2 * delta_t
+sd_st <- sqrt(Var_st)
+
+E_st; Var_st; sd_st
+```
+Para $P(S_{10} < S_0) \rightarrow P(\Delta S < 0)$, entonces:
+
+```{r}
+delta <- 0 
+
+Zo <- (delta - E_st) / sd_st
+Zo
+```
+
+```{r}
+pnorm(
+  Zo, 
+  mean = 0,
+  sd = 1
+)
+```
+
+**c)** En un dado justo,
+
+$$
+P(\text{obtener un número mayor o igual a } 5) = \frac{2}{6}.
+$$
+
+¿Qué evento es más probable: obtener un número mayor o igual a 5 o que el activo disminuya durante los próximos 10 días? Justifica cuantitativamente.
+
+```{r}
+pnorm(
+  Zo, 
+  mean = 0,
+  sd = 1
+);
+2/6
+```
+
+# Tarea 6
+
+## **Problema 6: Precio fururo y probabilidades**
+
+Un activo se modela mediante
+
+$$dS_t = 0.15S_t\,dt + 0.40S_t\,dW_t,
+\qquad S_0 = 50,$$
+
+con parámetros anualizados.
+
+**a)** Determina la distribución de
+
+$$\ln\left(\frac{S_T}{S_0}\right)$$
+
+para $T = 0.5$.
+
+Siendo que:
+
+$$ 
+ln(\frac{S_T}{S_0}) \sim N ( ( \mu-\frac{1}{2}\sigma^2 )T, \sigma^2 T ) $$
+
+$$ 
+ln(S_T) \sim N (ln(S_0) + ( \mu-\frac{1}{2}\sigma^2 )T, \sigma^2 T ) $$
+
+```{r}
+So <- 50; mu <- 0.15; sigma <- 0.4; T <- 0.5
+```
+
+```{r}
+media <- (mu - 0.5*sigma^2) * T
+var <- sigma^2 * T
+
+media; var
+```
+
+**b)** Determina $E[S_T]$ y $\operatorname{Var}(S_T)$ para seis meses.
+
+Recordando que:
+
+$$E[S_T] = S_0e^{\mu T}$$ y
+
+$$\operatorname{Var}(S_T) = S_0^2 e^{2 \mu T} (e^{\sigma^2 T} -1)$$
+
+```{r}
+E_st <- So * exp(mu * T)
+var_st <- So^2 * exp(2 * mu * T) * (exp(sigma^2 * T) - 1)
+
+E_st; var_st
+```
+
+**c)** Calcula $P(S_T > 60)$.
+
+Recordemos lo siguiente:
+
+Teóricamente
+
+$$\ln(\frac{S_T}{S_0})
+=
+\left(
+\mu-\frac{1}{2}\sigma^2
+\right)T
++
+\sigma W_T$$
+
+$$P(Z>Z_0)$$
+
+Donde:
+
+$$
+Z_0 = \frac{
+\ln(\frac{K}{S_0})
+-
+(
+\mu-\frac{1}{2}\sigma^2
+)T
+}{
+\sigma\sqrt{T}
+}
+$$
+
+
+Entonces para nuestro caso $P(S_T > 60)$:
+
+$$\ln \frac{S_T}{S_0} \sim N\left( \left(\mu - \sigma^2/2\right)T,\ \sigma^2 T \right)$$
+
+$$P(S_T > K) = P\left( Z > \frac{\ln(\frac{K}{S_0}) - \left(\mu - \sigma^2/2\right)T}{\sigma\sqrt{T}} \right)$$
+
+$$\boxed{P(S_T > K) = 1 - \Phi\left( \frac{\ln(K/S_0) - \left(\mu - \sigma^2/2\right)T}{\sigma\sqrt{T}} \right)}$$
+
+```{r}
+K <- 60
+Zo <- (log(K/So) - media) / sqrt(var)
+
+Zo
+```
+
+```{r}
+pnorm(
+  Zo,
+  mean = 0,
+  sd = 1, 
+  lower.tail = FALSE
+)
+```
+
+**d)** Calcula $P(45 < S_T < 65)$.
+
+Podemos aplicar la propiedad:
+$$P(a < X < b) = P(X < b) - P(X < a)$$
+
+```{r}
+k_lower <- 45; k_upper <- 65
+
+z_lower <- (log(k_lower/So) - media) / sqrt(var)
+z_upper <- (log(k_upper/So) - media) / sqrt(var)
+
+z_lower; z_upper
+```
+
+```{r}
+pnorm(
+  z_upper,
+  mean = 0,
+  sd = 1
+) - 
+pnorm(
+  z_lower,
+  mean = 0,
+  sd = 1
+)
+```
+
+**e)** Construye un **intervalo de probabilidad del 90%** para $S_T$.
+
+Creamos una función para el intervalo pero de forma exacta. 
+
+**Forma exacta: intervalo logarítmico → precios**
+
+Parte de:
+
+$$
+S_T = S_0 e^{(\mu - \sigma^2/2)T + \sigma \sqrt{T}\, Z}.
+$$
+
+Por tanto, el intervalo es:
+
+$$
+\boxed{\left[ S_0 e^{(\mu - \sigma^2/2)T - z \sigma \sqrt{T}},\ S_0 e^{(\mu - \sigma^2/2)T + z \sigma \sqrt{T}} \right]}
+$$
+
+```{r}
+intervalo_confianza_gbm <- function(So, mu, sigma, delta_t, nc) {
+  media_log <- (mu - 0.5 * sigma^2) * delta_t
+  desv_log <- sigma * sqrt(delta_t)
+  z <- qnorm(1 - (1 - nc) / 2)
+
+  c(
+    inferior = So * exp(media_log - z * desv_log),
+    superior = So * exp(media_log + z * desv_log)
+  )
+}
+```
+
+
+Para un intervalo al 90%:
+
+```{r}
+nc <- 0.9
+
+intervalo_confianza_gbm(
+  So = So,
+  mu = mu,
+  sigma = sigma,
+  delta_t = T,
+  nc = nc
+)
+```
+
+**f)** Calcula la mediana de $S_T$ y compárala con $E[S_T]$. Explica por
+qué no tienen que coincidir.
+
+Recordemos que la mediana es:
+$$\operatorname{Median}(S_T) = S_0 e^{(\mu - \sigma^2/2)T}$$
+
+```{r}
+Mediana = So * exp((mu - 0.5 * sigma^2) * T)
+E_st; Mediana
+```
+
+## **Problema 7. Comparar aproximación local y solución exacta**
+
+Considere
+
+$$S_0 = 100, \qquad \mu = 0.12, \qquad \sigma = 0.35.$$
+
+**a)** Utilizando la aproximación local
+
+$$\Delta S \approx \mu S_0 T + \sigma S_0 \sqrt{T}\, Z,$$
+
+calcula
+
+$$P(S_T > 105)$$
+
+para $T = 5/252$
+
+```{r}
+So <- 100; mu <- 0.12; sigma <- 0.35; K <- 105; Time <- 5/252
+```
+
+Para $P(S_T > 105) \Rightarrow P(\Delta S > 5)$
+
+Hay que estandarizar primero, para eso calculamos la esperanza y
+varianza, recondando que:
+
+$$E[\Delta S] = \mu S_0 T$$
+
+$$\operatorname{Var}(\Delta S) = \sigma^2 S_0 ^2 T$$
+
+$$\operatorname{SD}(\Delta S) = \sigma S_0 \sqrt{T}$$
+
+```{r}
+e_delta_s <- mu * So * Time
+va_delta_s <- sigma^2 * So^2 * Time
+sd_delta_s <- sqrt(va_delta_s)
+
+e_delta_s; va_delta_s; sd_delta_s
+```
+
+```{r}
+delta <- K - So
+
+Zo_aproximacion <- (delta - e_delta_s) / sd_delta_s
+Zo_aproximacion
+```
+
+```{r}
+pnorm(
+  Zo_aproximacion, 
+  mean = 0,
+  sd = 1,
+  lower.tail = FALSE
+)
+```
+
+**b)** Calcula la misma probabilidad utilizando la solución exacta del
+GBM.
+
+Ahora usaremos:
+
+$$\ln \frac{S_T}{S_0} \sim N\left( \left(\mu - \sigma^2/2\right)T,\ \sigma^2 T \right)$$
+
+```{r}
+e_exacta <- (mu - 0.5*sigma^2) * Time
+var_exacta <- sigma^2 * Time
+sd_exacta <- sqrt(var_exacta)
+
+e_exacta; var_exacta; sd_exacta
+```
+
+```{r}
+Zo_exacta <- (log(K/So) - e_exacta) / sd_exacta
+
+Zo_exacta
+```
+
+```{r}
+pnorm(
+  Zo_exacta, 
+  mean = 0,
+  sd = 1,
+  lower.tail = FALSE
+)
+```
+
+**c)** Compara los resultados y explica por qué esperas que sean
+cercanos para un horizonte de cinco días.
+
+```{r}
+pnorm(
+  Zo_aproximacion, 
+  mean = 0,
+  sd = 1,
+  lower.tail = FALSE
+);
+pnorm(
+  Zo_exacta, 
+  mean = 0,
+  sd = 1,
+  lower.tail = FALSE
+)
+```
+
+**d)** Repite ambos cálculos para $T = 1$.
+
+```{r}
+prob_aprox_exacta <- function(eleccion, So, mu, sigma, K, T) {
+  if (eleccion == 'a') {
+    e_delta_s <- mu * So * Time
+    va_delta_s <- sigma^2 * So^2 * Time
+    sd_delta_s <- sqrt(va_delta_s)
+    delta <- K - So
+    c(
+      Zo_aproximacion <- (delta - e_delta_s) / sd_delta_s,
+      probabilidad <- pnorm(
+        Zo_aproximacion, 
+        mean = 0, 
+        sd = 1, 
+        lower.tail = FALSE
+        )
+    )
+  } else {
+    e_exacta <- (mu - 0.5*sigma^2) * Time
+    var_exacta <- sigma^2 * Time
+    sd_exacta <- sqrt(var_exacta)
+    c(
+    Zo_exacta <- (log(K/So) - e_exacta) / sd_exacta,
+    probabilidad <- pnorm(
+      Zo_exacta, 
+      mean = 0, 
+      sd = 1, 
+      lower.tail = FALSE
+      )
+    )
+  }
+}
+```
+
+```{r}
+So <- 100; mu <- 0.12; sigma <- 0.35; K <- 105; Time <- 1
+
+prob_aprox_exacta(
+  'a',
+  So,
+  mu,
+  sigma, 
+  K, 
+  Time
+);
+
+prob_aprox_exacta(
+  'e',
+  So,
+  mu,
+  sigma, 
+  K, 
+  Time
+)
+```
