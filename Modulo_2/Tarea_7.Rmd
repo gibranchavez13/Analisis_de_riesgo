@@ -1,0 +1,1360 @@
+---
+title: "Tarea 7"
+subtitle: "Estudio a BBVA"
+author: "Gibrán Leonardo Chávez González"
+date: "2026-09-20"
+output:
+  html_document:
+    theme: darkly          # tema oscuro de Bootswatch
+    highlight: espresso  # resaltado de código oscuro, combina con darkly
+    toc: true              # activa el índice
+    toc_depth: 2           # muestra secciones (#) y subsecciones (##)
+    toc_float:
+      collapsed: true      # las subsecciones se despliegan al navegar
+      smooth_scroll: true
+---
+
+```{css, echo=FALSE}
+/* Estilo de las respuestas: se distinguen del enunciado */
+.respuesta {
+  color: #9FE2BF;
+  background-color: rgba(159, 226, 191, 0.07);
+  border-left: 4px solid #9FE2BF;
+  border-radius: 4px;
+  padding: 10px 16px;
+  margin: 12px 0 24px 0;
+}
+.respuesta::before {
+  content: "Respuesta";
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+.respuesta table, .respuesta th, .respuesta td {
+  color: #9FE2BF;
+}
+```
+
+# Tarea 7
+
+## Estimación, simulación y validación del movimiento browniano geométrico
+
+**Unidad 2**
+
+**Propósito.** Esta actividad busca integrar datos reales, estimación de parámetros, simulación Monte Carlo y cálculo teórico bajo movimiento browniano geométrico (GBM). Deberás comparar la aproximación local basada en $dS_t$ con la solución exacta del GBM, evaluar la normalidad de distintas transformaciones y discutir cuándo cada aproximación es adecuada.
+
+### Indicaciones
+
+Entrega un documento HTML generado desde RMarkdown que incluya:
+
+- código reproducible;
+- resultados numéricos;
+- gráficas;
+- respuestas interpretativas;
+- procedimientos teóricos claramente desarrollados.
+
+Para las probabilidades empíricas utiliza al menos $100{,}000$ simulaciones.
+
+Usa 252 días bursátiles por año, salvo que se indique lo contrario.
+
+**Importante.** En esta tarea compararemos dos aproximaciones distintas:
+
+$$\Delta S \approx \mu S_0 T + \sigma S_0 \sqrt{T}\, Z, \qquad Z \sim N(0,1),$$
+
+que es una **aproximación local**, y
+
+$$S_T = S_0 \exp\left[ \left( \mu - \tfrac{1}{2}\sigma^2 \right) T + \sigma \sqrt{T}\, Z \right],$$
+
+que es la **solución exacta** del GBM.
+
+------------------------------------------------------------------------
+
+## Problema 1. Datos reales y estimación de parámetros
+
+Selecciona un activo financiero que cotice diariamente y pueda descargarse desde Yahoo Finance. Puedes utilizar, por ejemplo, una emisora de la BMV.
+
+Descarga al menos dos años de datos diarios y trabaja con precios ajustados.
+
+```{r, message=FALSE, warning=FALSE}
+library(quantmod); library(moments); library(tseries); set.seed(666)
+```
+
+```{r definición_ticker_y_fechas}
+ticker <- 'BBVA'
+fecha_inicio <- '2020-01-01'
+fecha_fin <- '2026-09-21'
+```
+
+```{r descarga_precios}
+getSymbols(
+  ticker, 
+  src = 'yahoo',
+  from = fecha_inicio,
+  to = fecha_fin
+)
+
+precio <- na.omit(Ad(get(ticker)))
+log_precio <- log(precio)
+
+head(
+  cbind(
+    precio,
+    log_precio  
+  )
+)
+```
+
+**a)** Grafica la serie de precios y la serie de log-precios.
+
+```{r grafica_precios}
+plot(
+  precio,
+  main = 'Gráfica del Precio',
+  col = 'lightblue'
+)
+
+plot(
+  log_precio,
+  main = 'Gráfica del logaritmo del Precio',
+  col = 'darkblue'
+)
+```
+
+**b)** Calcula los rendimientos simples:
+
+$$R_t = \frac{S_t - S_{t-1}}{S_{t-1}},$$
+
+y los log-rendimientos:
+
+$$r_t = \ln\left( \frac{S_t}{S_{t-1}} \right).$$
+
+```{r rendimientos}
+simple_rets <- na.omit(dailyReturn(
+  precio,
+  type = 'arithmetic',
+  leading = FALSE
+))
+
+log_rets <- na.omit(dailyReturn(
+  precio,
+  type = 'log', 
+  leading = FALSE
+))
+
+head(
+  cbind(
+    simple_rets,
+    log_rets
+  )
+)
+```
+
+**c)** Estima:
+
+$$\bar{r}_{\text{daily}} \quad \text{y} \quad \hat{\sigma}_{\text{daily}}.$$
+
+```{r rend_vol_promedio_diario}
+r_daily_s <- mean(simple_rets); sigma_daily_s <- sd(simple_rets)
+
+r_daily_l <- mean(log_rets); sigma_daily_l <- sd(log_rets)
+
+r_daily_s; sigma_daily_s
+r_daily_l; sigma_daily_l
+```
+
+**d)** Anualiza la volatilidad:
+
+$$\hat{\sigma}_{\text{ann}} = \hat{\sigma}_{\text{daily}} \sqrt{252}.$$
+
+```{r vol_anual}
+sigma_anual_s <- sigma_daily_s * sqrt(252)
+sigma_anual_l <- sigma_daily_l * sqrt(252)
+
+sigma_anual_s; sigma_anual_l
+```
+
+**e)** Bajo GBM, utiliza
+
+$$E[r_{\Delta t}] = \left( \mu - \tfrac{1}{2}\sigma^2 \right) \Delta t$$
+
+para estimar
+
+$$\hat{\mu} = 252\, \bar{r}_{\text{daily}} + \tfrac{1}{2} \hat{\sigma}^2_{\text{ann}}.$$
+
+```{r mu}
+mu_s <- 252 * r_daily_s 
+mu_l <- 252 * r_daily_l + 0.5 * sigma_anual_l^2
+
+mu_s; mu_l
+```
+
+**f)** Explica por qué
+
+$$252\, \bar{r}_{\text{daily}}$$
+
+no debe interpretarse directamente como $\hat{\mu}$.
+
+::: respuesta
+El parámetro $\mu$ del GBM es el drift de la **variación relativa del precio**, $\frac{dS_t}{S_t} = \mu\,dt + \sigma\,dW_t$, no el drift del log-precio. Al aplicar el lema de Itô a $f(S) = \ln S$, el término de segundo orden no desaparece, porque $(dW_t)^2 = dt$, y se obtiene
+
+$$d\ln S_t = \left(\mu - \tfrac{1}{2}\sigma^2\right)dt + \sigma\,dW_t .$$
+
+Por lo tanto, la media de los log-rendimientos diarios estima $(\mu - \tfrac12\sigma^2)\Delta t$, y al multiplicarla por 252 obtenemos una estimación de $\mu - \tfrac12\sigma^2$, no de $\mu$. La corrección $-\tfrac12\sigma^2$ no es un supuesto adicional: la genera la variación cuadrática del movimiento browniano.
+
+Las dos cantidades tienen interpretaciones distintas:
+
+- $\mu - \tfrac12\sigma^2$ es el crecimiento del log-precio y determina la **mediana**: $\text{Mediana}(S_T) = S_0 e^{(\mu-\sigma^2/2)T}$.
+- $\mu$ determina la **media**: $E[S_T] = S_0 e^{\mu T}$.
+:::
+
+**g)** Reporta en una tabla:
+
+$$S_0,\quad \bar{r}_{\text{daily}},\quad \hat{\sigma}_{\text{daily}},\quad \hat{\sigma}_{\text{ann}},\quad \hat{\mu}.$$
+
+```{r tabla}
+
+knitr::kable(cbind(
+  S0 = as.numeric(last(precio)),
+  r_daily_l,
+  sigma_daily_l,
+  sigma_anual_l,
+  mu_l
+))
+
+```
+
+------------------------------------------------------------------------
+
+## Problema 2. Diagnóstico distribucional
+
+Utiliza los datos reales del Problema 1.
+
+**a)** Construye un histograma del precio $S_t$.
+
+```{r hisrograma_precio}
+hist(
+  precio, 
+  main = 'Distribución de Precios',
+  n = 100,
+  col = 'lightblue'
+)
+```
+
+**b)** Construye un histograma de $\ln S_t$.
+
+```{r histograma_log_precio}
+hist(
+  log_precio, 
+  main = 'Distribución de logaritmo de Precios',
+  n = 100,
+  col = 'darkblue'
+)
+```
+
+**c)** Construye histogramas de $R_t$ y $r_t$.
+
+```{r histogramas_rendimientos}
+hist(
+  simple_rets,
+  main = 'Distribución de redimientos simples',
+  n = 100, 
+  col = 'lightblue'
+)
+
+hist(
+  log_rets,
+  main = 'Distribución de log-redimientos',
+  n = 100, 
+  col = 'darkblue'
+)
+```
+
+**d)** Para cada una de las cuatro variables anteriores, aplica una prueba de Jarque–Bera.
+
+$$H_0: \text{Los datos son normales}$$
+
+$$H_1: \text{Los datos no son normales}$$
+
+```{r pruebas_jarque_bera}
+variables <- list(
+  'Precio S_t' = precio, 
+  'log-Precio ln(S_t)' = log_precio, 
+  'Rend. Simples Rt' = simple_rets, 
+  'Log-Rend ln(Rt)' = log_rets
+)
+
+pruebas <- lapply(variables, function(x) jarque.bera.test(as.numeric(x)))
+pruebas
+```
+
+**e)** Resume los resultados en una tabla con:
+
+- estadístico, p-value, decisión sobre $H_0$.
+
+```{r}
+tabla_jb <- data.frame(
+  Variable    = names(pruebas),
+  Estadistico = sapply(pruebas, function(p) unname(p$statistic)),
+  p_value     = sapply(pruebas, function(p) p$p.value),
+  row.names   = NULL
+)
+
+tabla_jb$Decision <- ifelse(tabla_jb$p_value < 0.05, "Se rechaza H0", "No se rechaza H0")
+tabla_jb$p_value  <- format.pval(tabla_jb$p_value, digits = 3)
+
+knitr::kable(tabla_jb)
+```
+
+**f)** ¿Cuál de estas pruebas está más directamente relacionada con el supuesto distribucional del GBM? Justifica formalmente.
+
+::: respuesta
+La prueba relevante es la de los **log-rendimientos** $r_t$.
+
+Al integrar la ecuación de Itô para $\ln S_t$ entre $t-\Delta t$ y $t$:
+
+$$r_t = \ln\frac{S_t}{S_{t-\Delta t}} = \left(\mu - \tfrac12\sigma^2\right)\Delta t + \sigma\left(W_t - W_{t-\Delta t}\right).$$
+
+Los incrementos del proceso de Wiener sobre intervalos que no se traslapan son independientes y cumplen $W_t - W_{t-\Delta t} \sim N(0, \Delta t)$. Por lo tanto, bajo GBM:
+
+$$r_t \overset{iid}{\sim} N\!\left(\left(\mu - \tfrac12\sigma^2\right)\Delta t,\ \sigma^2\Delta t\right).$$
+
+Esa es la implicación distribucional del modelo que sí se puede contrastar con una muestra: los $r_t$ son observaciones independientes de una misma normal, justo lo que supone Jarque–Bera. Las otras variables no son normales según el modelo:
+
+- $S_t$ es **lognormal** (positiva y sesgada a la derecha), no normal.
+- $\ln S_t$ sí es normal para cada $t$ fijo, pero la serie histórica no es una muestra de una sola distribución (ver inciso g).
+
+Se rechaza con fuerza la normalidad que el GBM implica: los datos de BBVA contradicen este supuesto del modelo.
+:::
+
+**g)** Explica por qué probar normalidad sobre toda la serie histórica
+
+$$\ln S_1,\ \ln S_2,\ \dots,\ \ln S_n$$
+
+debe interpretarse con cautela.
+
+::: respuesta
+Jarque–Bera supone que los datos son observaciones **independientes de una misma distribución**. La serie de log-precios no cumple ninguna de las dos condiciones, ni siquiera si el GBM fuera cierto:
+
+1.  **No hay una distribución común.** Bajo GBM, $\ln S_t \sim N\!\left(\ln S_0 + (\mu - \tfrac12\sigma^2)t,\ \sigma^2 t\right)$: la media y la varianza cambian con $t$. Cada $\ln S_t$ proviene de una normal diferente, y mezclarlas no produce una normal.
+2.  **No son independientes.** $\ln S_t$ es una caminata aleatoria con drift: cada valor es el anterior más un incremento. Los log-precios consecutivos comparten casi toda su historia y están muy correlacionados.
+3.  **Es una sola trayectoria.** La trayectoria observada es una realización del proceso estocástico, no el proceso completo. El histograma de $\ln S_t$ refleja la forma de *ese* camino: con BBVA, la tendencia de `r round(min(log_precio), 2)` a `r round(max(log_precio), 2)` en log-precio. No refleja la distribución de $\ln S_T$ para un $T$ fijo, de la que solo tenemos una observación por fecha.
+:::
+
+**h)** Conecta tus resultados con los hechos estilizados de la Parte A: heavy tails, asimetría y clustering de volatilidad.
+
+```{r hechos_estilizados}
+r_log <- as.numeric(log_rets)
+
+hechos <- data.frame(
+  Medida = c('Asimetría',
+             'Curtosis (Normal = 3)',
+             '% de días con |z| > 3 (datos)',
+             '% de días con |z| > 3 (Normal)'),
+  Valor = c(skewness(r_log),
+            kurtosis(r_log),
+            100 * mean(abs(scale(r_log)) > 3),
+            100 * 2 * pnorm(-3))
+)
+
+knitr::kable(hechos, digits = 3)
+
+vol_por_anio <- tapply(r_log, format(index(log_rets), '%Y'), sd) * sqrt(252)
+knitr::kable(t(round(vol_por_anio, 3)), caption = 'Volatilidad anualizada por año')
+
+plot(log_rets, main = 'Log-rendimientos diarios', col = 'darkblue')
+```
+
+```{r acf_rendimientos}
+acf_r  <- acf(r_log,   lag.max = 30, main = 'ACF de los log-rendimientos r_t')
+acf_r2 <- acf(r_log^2, lag.max = 30, main = 'ACF de los log-rendimientos al cuadrado r_t^2')
+
+banda <- qnorm(0.975) / sqrt(length(r_log))   # bandas azules del 95 %
+
+fuera_r  <- sum(abs(acf_r$acf[-1])  > banda)
+fuera_r2 <- sum(abs(acf_r2$acf[-1]) > banda)
+```
+
+::: respuesta
+El rechazo de normalidad en los rendimientos no es una anomalía de BBVA: es la huella de los hechos estilizados que aparecen en casi todas las series financieras.
+
+- **Colas pesadas.** La curtosis de los log-rendimientos es `r round(hechos$Valor[2], 2)`, muy por encima del 3 de la normal (leptocurtosis: centro más puntiagudo y colas más gruesas). El `r round(hechos$Valor[3], 2)` % de los días tuvo movimientos mayores a 3 desviaciones estándar, contra `r round(hechos$Valor[4], 2)` % bajo normalidad: unas `r round(hechos$Valor[3] / hechos$Valor[4], 1)` veces más. La caída más fuerte fue de `r round(abs(100 * min(r_log)), 1)` % en un solo día (`r format(index(log_rets)[which.min(r_log)])`, crisis del COVID). Un modelo normal subestima la probabilidad de estos eventos extremos, que son justo los que importan en riesgo.
+- **Asimetría.** La asimetría es `r round(hechos$Valor[1], 2)`: la cola izquierda es más larga. Las pérdidas extremas son más probables que las ganancias de la misma magnitud, y para el análisis de riesgo esa asimetría a la baja es la más relevante. Dos distribuciones con la misma media y varianza pueden esconder riesgos a la baja muy distintos.
+- **Clustering de volatilidad.** Las dos gráficas de autocorrelación muestran comportamientos muy distintos:
+  - **ACF de $r_t$:** las barras son pequeñas y casi todas quedan dentro o apenas fuera de las bandas del 95 %. Solo `r fuera_r` de 30 rezagos las cruzan, y ninguna autocorrelación supera `r round(max(abs(acf_r$acf[-1])), 2)` en valor absoluto. La dependencia lineal es débil: los rendimientos pasados dicen poco sobre el signo de los futuros.
+  - **ACF de $r_t^2$:** las barras son claramente positivas, `r fuera_r2` de 30 rezagos salen de las bandas y decaen lentamente. Los movimientos grandes tienden a seguir a movimientos grandes, sin importar su signo.
+
+  Que los rendimientos no estén correlacionados no implica que sean independientes: la dependencia está en la volatilidad. Esto se confirma en la volatilidad anual, que pasó de `r round(vol_por_anio['2020'], 2)` en 2020 a `r round(min(vol_por_anio), 2)` en el año más tranquilo, y en la gráfica de rendimientos, donde se ven periodos de calma y de turbulencia agrupados.
+
+El estadístico de Jarque–Bera combina precisamente asimetría y curtosis, así que su valor tan alto resume los dos primeros hechos. El tercero rompe además el supuesto de $\sigma$ constante: una mezcla de periodos de baja y alta volatilidad produce, por sí misma, colas pesadas. La normalidad es un punto de referencia útil por su manejabilidad, no una descripción exacta de los rendimientos.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 3. Probabilidad teórica y empírica a corto plazo
+
+Utiliza los parámetros estimados en el Problema 1 y el último precio observado como $S_0$.
+
+Estima la probabilidad de que el precio del activo disminuya durante los próximos 5 días bursátiles.
+
+```{r}
+So <- as.numeric(last(precio)); T <- 5/252
+```
+
+**a)** Usando la aproximación local:
+
+$$\Delta S \approx \mu S_0 T + \sigma S_0 \sqrt{T}\, Z,$$
+
+calcula teóricamente
+
+$$P(\Delta S < 0).$$
+
+```{r prob_teorica}
+delta_s <- 0
+
+E_delta_s <- mu_l * So * T
+Var_delta_s <- sigma_anual_l^2 * So^2 * T
+SD_delta_s <- sqrt(Var_delta_s)
+
+Zo <- (delta_s - E_delta_s) / SD_delta_s
+
+p3_teo_aprox <- pnorm(
+  Zo,
+  mean = 0,
+  sd = 1
+)
+
+p3_teo_aprox
+```
+
+**b)** Estima empíricamente la misma probabilidad mediante al menos 100,000 simulaciones de $\Delta S$.
+
+```{r prob_empirica}
+Z <- rnorm(
+  1000000,
+  mean = 0, 
+  sd = 1
+)
+
+Delta_s <- mu_l * So * T + sigma_anual_l * So * sqrt(T) * Z
+
+p3_emp_aprox <- mean(Delta_s < delta_s)
+
+p3_emp_aprox
+```
+
+**c)** Usando la solución exacta:
+
+$$S_T = S_0 e^{(\mu - \sigma^2/2)T + \sigma \sqrt{T}\, Z},$$
+
+calcula teóricamente
+
+$$P(S_T < S_0).$$
+
+```{r prob_teorica_exacta}
+
+E_st <- log(So) + (mu_l - 0.5 * sigma_anual_l^2) * T
+sd_st <- sigma_anual_l * sqrt(T)
+
+Zo_ <- (log(So) - E_st) / sd_st
+
+p3_teo_exacta <- pnorm(
+  Zo_,
+  mean = 0,
+  sd = 1
+)
+
+p3_teo_exacta
+```
+
+**d)** Estima empíricamente esa probabilidad mediante Monte Carlo.
+
+```{r prob_empirica_exacta_montecarlo}
+ST <- So * exp((mu_l - 0.5 * sigma_anual_l^2)*T + sigma_anual_l * sqrt(T) * Z)
+
+p3_emp_exacta <- mean(ST < So)
+
+p3_emp_exacta
+```
+
+**e)** Compara los cuatro resultados en una sola tabla.
+
+```{r}
+tabla_3 <- data.frame(
+  Ecuación = c('Aprox. Local', 'Sol. Exacta'),
+  Teórica = c(p3_teo_aprox, p3_teo_exacta),
+  Empírica = c(p3_emp_aprox, p3_emp_exacta)
+)
+
+knitr::kable(tabla_3)
+```
+
+**f)** Explica por qué esperas que la aproximación local y la solución exacta sean relativamente cercanas a 5 días.
+
+::: respuesta
+La aproximación local es un paso de Euler–Maruyama: sustituye $dt$ y $dW_t$ por incrementos finitos $T$ y $\sqrt{T}Z$, y deja fijo el precio en $S_0$ durante todo el intervalo. Es una buena aproximación cuando el intervalo es pequeño, por tres razones:
+
+1.  **La corrección de Itô es de orden** $T$. Las dos probabilidades solo difieren en el drift: la local usa $\mu$ y la exacta usa $\mu - \tfrac12\sigma^2$. Al estandarizar,
+
+    $$z_{\text{local}} = -\frac{\mu\sqrt{T}}{\sigma}, \qquad z_{\text{exacta}} = -\frac{(\mu - \sigma^2/2)\sqrt{T}}{\sigma}, \qquad z_{\text{exacta}} - z_{\text{local}} = \frac{\sigma\sqrt{T}}{2}.$$
+
+    A 5 días esa diferencia es de apenas `r round(sigma_anual_l * sqrt(5/252) / 2, 4)` desviaciones estándar, lo que mueve la probabilidad en aproximadamente $\phi(0)\cdot`r round(sigma_anual_l * sqrt(5/252) / 2, 4)` \approx `r round(dnorm(0) * sigma_anual_l * sqrt(5/252) / 2, 4)`$.
+
+2.  **Linealizar la exponencial casi no cambia nada.** La solución exacta es $S_T/S_0 = e^{X}$ con $X$ de orden $\sigma\sqrt{T} \approx `r round(sigma_anual_l * sqrt(5/252), 3)`$. Para $X$ pequeño, $e^X \approx 1 + X$, así que la lognormal casi no se distingue de una normal y el sesgo a la derecha es mínimo.
+
+3.  **Domina el choque aleatorio.** El componente esperado $\mu T \approx `r round(mu_l * 5/252, 4)`$ es pequeño frente al aleatorio $\sigma\sqrt{T} \approx `r round(sigma_anual_l * sqrt(5/252), 4)`$, porque el primero escala con $T$ y el segundo con $\sqrt{T}$. Ambas probabilidades quedan cerca de 0.5 y la manera de tratar el drift pesa poco.
+
+Por eso a 5 días obtenemos `r round(p3_teo_aprox, 4)` (local) contra `r round(p3_teo_exacta, 4)` (exacta): una diferencia de `r round(p3_teo_exacta - p3_teo_aprox, 4)`, prácticamente la que predice la fórmula anterior.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 4. La misma probabilidad a un año
+
+Repite el Problema 3 para
+
+$$T = 1.$$
+
+```{r}
+So <- as.numeric(last(precio)); T <- 1
+```
+
+**a)** Calcula la probabilidad teórica usando la aproximación local.
+
+```{r}
+delta_s <- 0
+
+E_delta_s <- mu_l * So * T
+Var_delta_s <- sigma_anual_l^2 * So^2 * T
+SD_delta_s <- sqrt(Var_delta_s)
+
+Zo <- (delta_s - E_delta_s) / SD_delta_s
+
+p4_teo_aprox <- pnorm(
+  Zo,
+  mean = 0,
+  sd = 1
+)
+
+p4_teo_aprox
+```
+
+**b)** Estima la probabilidad empírica usando la aproximación local.
+
+```{r}
+Z <- rnorm(
+  1000000,
+  mean = 0, 
+  sd = 1
+)
+
+Delta_s <- mu_l * So * T + sigma_anual_l * So * sqrt(T) * Z
+
+p4_emp_aprox <- mean(Delta_s < delta_s)
+
+p4_emp_aprox
+```
+
+**c)** Calcula la probabilidad teórica usando la solución exacta.
+
+```{r}
+E_st <- log(So) + (mu_l - 0.5 * sigma_anual_l^2) * T
+sd_st <- sigma_anual_l * sqrt(T)
+
+Zo_ <- (log(So) - E_st) / sd_st
+
+p4_teo_exacta <- pnorm(
+  Zo_,
+  mean = 0,
+  sd = 1
+)
+
+p4_teo_exacta
+```
+
+**d)** Estima la probabilidad empírica usando la solución exacta.
+
+```{r}
+ST <- So * exp((mu_l - 0.5 * sigma_anual_l^2)*T + sigma_anual_l * sqrt(T) * Z)
+
+p4_emp_exacta <- mean(ST < So)
+
+p4_emp_exacta
+```
+
+**e)** Compara los resultados con los obtenidos a 5 días.
+
+```{r}
+knitr::kable(tabla_3) # 5 días
+
+tabla_4 <- data.frame(
+  Ecuación = c('Aprox. Local', 'Sol. Exacta'),
+  Teórica = c(p4_teo_aprox, p4_teo_exacta),
+  Empírica = c(p4_emp_aprox, p4_emp_exacta)
+)
+
+knitr::kable(tabla_4) # 1 año
+```
+
+::: respuesta
+| Horizonte | Local | Exacta | Diferencia |
+|-----------------|------------------:|------------------:|------------------:|
+| 5 días | `r round(p3_teo_aprox, 4)` | `r round(p3_teo_exacta, 4)` | `r round(p3_teo_exacta - p3_teo_aprox, 4)` |
+| 1 año | `r round(p4_teo_aprox, 4)` | `r round(p4_teo_exacta, 4)` | `r round(p4_teo_exacta - p4_teo_aprox, 4)` |
+
+- **Las dos probabilidades bajan con el horizonte.** El componente esperado crece linealmente con $T$ y el aleatorio con $\sqrt{T}$. La razón drift/volatilidad, $\mu\sqrt{T}/\sigma$, aumenta con el tiempo, así que con $\mu > 0$ es cada vez menos probable terminar por debajo de $S_0$.
+- **La brecha entre métodos se multiplica.** Pasa de `r round(p3_teo_exacta - p3_teo_aprox, 4)` a `r round(p4_teo_exacta - p4_teo_aprox, 4)`, unas `r round((p4_teo_exacta - p4_teo_aprox) / (p3_teo_exacta - p3_teo_aprox), 1)` veces más. A un año, la aproximación local subestima la probabilidad de pérdida en `r round(100 * (p4_teo_exacta - p4_teo_aprox) / p4_teo_exacta, 1)` % de su valor exacto.
+- **Monte Carlo coincide con la teoría en ambos horizontes.** La simulación reproduce cada fórmula, pero no corrige el error de la aproximación: simular la ecuación local solo reproduce la probabilidad local. La discrepancia viene del modelo aproximado, no del número de simulaciones.
+:::
+
+**f)** ¿Qué método se deteriora más al aumentar el horizonte? Explica por qué.
+
+::: respuesta
+Se deteriora la **aproximación local**. La solución exacta no pierde precisión con el horizonte: es la solución de la ecuación del GBM para cualquier $T$, y su único error posible es el del propio modelo. La aproximación local, en cambio, acumula tres errores que crecen con $T$:
+
+1.  **Omite la corrección de Itô.** Usa $\mu$ como drift cuando el log-precio crece a tasa $\mu - \tfrac12\sigma^2$. La distancia entre los valores $z$ es $\sigma\sqrt{T}/2$, que crece con la raíz del horizonte: `r round(sigma_anual_l * sqrt(5/252) / 2, 3)` a 5 días y `r round(sigma_anual_l / 2, 3)` a un año. Por eso la local ubica la mediana del precio demasiado arriba y subestima la probabilidad de caída.
+2.  **Supone normalidad del cambio en el precio.** $\Delta S$ normal es simétrica, pero bajo GBM $S_T$ es lognormal, con sesgo a la derecha, y la mediana queda por debajo de la media. Con horizontes largos esa asimetría es grande, y la normal además asigna probabilidad positiva a precios negativos.
+3.  **Congela el precio en** $S_0$. En el GBM tanto el drift como la volatilidad escalan con el precio *actual* $S_t$. La aproximación local los fija en $S_0$ e ignora la capitalización compuesta del camino, un efecto despreciable en 5 días pero no en un año.
+
+En resumen, la aproximación local equivale a un solo paso de Euler–Maruyama de tamaño $T$. Es razonable para intervalos pequeños, pero no para horizontes largos.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 5. Precios futuros e intervalos de probabilidad
+
+Utiliza nuevamente $S_0$, $\hat{\mu}$ y $\hat{\sigma}$ del activo real.
+
+Para cada horizonte
+
+$$T \in \left\{ \frac{1}{252},\ \frac{10}{252},\ \frac{60}{252},\ 1 \right\},$$
+
+```{r horizontes}
+Ts <- c(
+  '1 día' = 1/252, 
+  '10 días' = 10/252, 
+  '60 días' = 60/252, 
+  '252 días / 1 año' = 1)
+```
+
+determina:
+
+**a)**
+
+$$E[S_T] = S_0 e^{\mu T}.$$
+
+```{r}
+E_ST <- So * exp(mu_l * Ts)
+knitr::kable(E_ST, col.names = 'E[St]')
+```
+
+**b)**
+
+$$Var(S_T) = S_0^2 e^{2\mu T} \left( e^{\sigma^2 T} - 1 \right).$$
+
+```{r}
+Var_ST <- So^2 * exp(2 * mu_l * Ts) * (exp(sigma_anual_l^2 * Ts) - 1)
+knitr::kable(Var_ST, col.names = 'Var[St]')
+```
+
+**c)** La mediana:
+
+$$\text{Median}(S_T) = S_0 e^{(\mu - \sigma^2/2)T}.$$
+
+```{r}
+Mediana_ST <- So * exp((mu_l - 0.5 * sigma_anual_l^2) * Ts)
+knitr::kable(Mediana_ST, col.names = 'Mediana[St]')
+```
+
+**d)** Un intervalo central de probabilidad del 95 % para $S_T$.
+
+```{r}
+intervalo_confianza <- function(So, mu, sigma, T, nc){
+  z_nc = qnorm(1 - (1 - nc) / 2)
+  
+  c(
+    inferior = So * exp(((mu - 0.5 * sigma^2) * T) - z_nc * sigma * sqrt(T)),
+    superior = So * exp(((mu - 0.5 * sigma^2) * T) + z_nc * sigma * sqrt(T))
+  )
+}
+```
+
+```{r}
+IC_95 <- sapply(
+  Ts, 
+  function(t) intervalo_confianza(So, mu_l, sigma_anual_l, t, 0.95)
+  )
+knitr::kable(IC_95)
+```
+
+**e)** La probabilidad
+
+$$P(S_T > 1.10\, S_0).$$
+
+```{r}
+E_log_ST  <- log(So) + (mu_l - 0.5 * sigma_anual_l^2) * Ts
+sd_log_ST <- sigma_anual_l * sqrt(Ts)
+
+P_sube_10 <- pnorm((log(1.1 * So) - E_log_ST) / sd_log_ST, lower.tail = FALSE)
+knitr::kable(P_sube_10, col.names = 'P(St > 1.1St)')
+```
+
+**f)** Resume todos los resultados en una tabla y describe cómo cambia la incertidumbre al aumentar $T$.
+
+```{r}
+tabla_5 <- data.frame(
+  Horizonte = names(Ts),
+  T         = Ts,
+  E_ST      = E_ST,
+  SD_ST     = sqrt(Var_ST),
+  Var_ST    = Var_ST,
+  Mediana   = Mediana_ST,
+  IC_inf    = IC_95['inferior', ],
+  IC_sup    = IC_95['superior', ],
+  P_sube_10 = P_sube_10,
+  row.names = NULL
+)
+
+knitr::kable(tabla_5,
+             caption = "Distribución de S_T bajo GBM por horizonte")
+```
+
+::: respuesta
+La incertidumbre crece con el horizonte, y además cambia de forma.
+
+- **En escala logarítmica crece como** $\sqrt{T}$. Bajo GBM, $\ln(S_T/S_0) \sim N\!\left((\mu - \tfrac12\sigma^2)T,\ \sigma^2T\right)$: la varianza del log-rendimiento crece linealmente con el tiempo y su desviación estándar con $\sqrt{T}$.
+- **En dólares crece más rápido que** $\sqrt{T}$. La desviación estándar del precio es $S_0 e^{\mu T}\sqrt{e^{\sigma^2T} - 1}$. Pasa de `r round(tabla_5$SD_ST[1], 2)` a un día a `r round(tabla_5$SD_ST[4], 2)` a un año: `r round(tabla_5$SD_ST[4] / tabla_5$SD_ST[1], 1)` veces más, frente al factor $\sqrt{252} \approx 15.9$ de la escala logarítmica.
+- **El intervalo se vuelve asimétrico.** El intervalo del 95 % es simétrico en escala logarítmica, no en precios. A un año, la mediana es `r round(tabla_5$Mediana[4], 2)`, el límite inferior está `r round(tabla_5$Mediana[4] - tabla_5$IC_inf[4], 2)` dólares por debajo y el superior `r round(tabla_5$IC_sup[4] - tabla_5$Mediana[4], 2)` dólares por arriba. El precio no puede bajar de cero, pero su cola derecha no tiene límite.
+- **La media se separa de la mediana.** Como $\sigma > 0$, en una lognormal se cumple moda \< mediana \< media. La brecha entre $E[S_T]$ y la mediana pasa de `r round(tabla_5$E_ST[1] - tabla_5$Mediana[1], 3)` (un día) a `r round(tabla_5$E_ST[4] - tabla_5$Mediana[4], 2)` (un año). Una media de `r round(tabla_5$E_ST[4], 2)` no significa que más de la mitad de los escenarios supere ese valor.
+- **La probabilidad de subir 10 % crece.** Pasa de prácticamente 0 a un día a `r round(tabla_5$P_sube_10[4], 3)` a un año, porque el drift se acumula y la mayor dispersión abre la cola derecha.
+
+Estos son **intervalos de probabilidad** para un precio futuro bajo el modelo, no intervalos de confianza para un parámetro: suponen que $\mu$ y $\sigma$ se conocen.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 6. Verificación Monte Carlo de los momentos
+
+Fija un horizonte de un año.
+
+**a)** Simula al menos 100,000 valores de
+
+$$S_T = S_0 \exp\left[ \left( \mu - \tfrac{1}{2}\sigma^2 \right) T + \sigma \sqrt{T}\, Z \right].$$
+
+```{r}
+T <- 1
+st_simulada <- So * exp(((mu_l - 0.5 * sigma_anual_l^2) * T) + sigma_anual_l * sqrt(T) * Z)
+```
+
+**b)** Compara:
+
+$$\hat{E}[S_T] \quad \text{vs.} \quad S_0 e^{\mu T}.$$
+
+```{r}
+E_st_simulada <- mean(st_simulada)
+E_st_real <- So * exp(mu_l * T)
+
+esperanzas6 <- data.frame(
+  Método = c('Simulación', 'Valor real'),
+  Resultado = c(E_st_simulada, E_st_real)
+)
+
+knitr::kable(esperanzas6)
+```
+
+**c)** Compara:
+
+$$\widehat{Var}(S_T) \quad \text{vs.} \quad S_0^2 e^{2\mu T} \left( e^{\sigma^2 T} - 1 \right).$$
+
+```{r}
+Var_st_simulada <- var(st_simulada)
+Var_st_real <- So^2 * exp(2 * mu_l * T) * (exp(sigma_anual_l^2 * T) - 1)
+
+varianzas6 <- data.frame(
+  Método = c('Simulación', 'Valor real'),
+  Resultado = c(Var_st_simulada, Var_st_real)
+)
+
+knitr::kable(varianzas6)
+```
+
+**d)** Calcula el porcentaje de simulaciones que cae dentro del intervalo probabilístico teórico del 95 %.
+
+```{r}
+ic <- intervalo_confianza(
+  So, 
+  mu_l, 
+  sigma_anual_l, 
+  T, 
+  0.95
+) 
+
+mean(st_simulada >= ic['inferior'] & st_simulada <= ic['superior'])
+```
+
+**e)** Explica por qué no esperas coincidencia exacta entre teoría y simulación.
+
+::: respuesta
+La teoría da los valores **poblacionales** de la distribución de $S_T$: $E[S_T] = S_0e^{\mu T}$, $Var(S_T) = S_0^2e^{2\mu T}(e^{\sigma^2T} - 1)$ y una cobertura del 95 %. Monte Carlo los estima con una **muestra finita** de $n = `r format(length(st_simulada), big.mark = ",")`$ escenarios. Cada estimador es una variable aleatoria que depende de los $Z$ generados (y por lo tanto de la semilla), así que siempre tiene error muestral:
+
+- **Media.** Por la ley de los grandes números, $\hat E[S_T] \to E[S_T]$ cuando $n \to \infty$. Por el teorema central del límite, el error típico es $\text{SD}(S_T)/\sqrt{n} \approx `r round(sd(st_simulada) / sqrt(length(st_simulada)), 4)`$. La diferencia observada, `r round(abs(E_st_simulada - E_st_real), 4)`, es menor que ese error típico, justo lo que se espera.
+- **Varianza.** Converge más lentamente porque depende del cuarto momento, y la lognormal tiene una cola derecha larga: unos pocos escenarios extremos pesan mucho. Por eso su error relativo, `r round(100 * abs(Var_st_simulada - Var_st_real) / Var_st_real, 2)` %, es mayor que el de la media, `r round(100 * abs(E_st_simulada - E_st_real) / E_st_real, 3)` %.
+- **Cobertura.** El porcentaje dentro del intervalo es una proporción binomial con error típico $\sqrt{0.95 \cdot 0.05/n} \approx `r round(100 * sqrt(0.95 * 0.05 / length(st_simulada)), 3)`$ %. Observamos `r round(100 * mean(st_simulada >= ic['inferior'] & st_simulada <= ic['superior']), 3)` %, dentro de ese margen.
+
+La simulación no sustituye a la teoría: la verifica. Lo que se busca no es igualdad exacta, sino diferencias del tamaño del error de muestreo, que se reduce a la mitad cada vez que se cuadruplica $n$. En este caso las diferencias son de ese tamaño, lo que confirma las fórmulas.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 7. Normalidad bajo el modelo
+
+Usa las simulaciones del Problema 6.
+
+**a)** Grafica la distribución simulada de $S_T$ y aplica Jarque–Bera.
+
+```{r distribución_st_simulada}
+hist(
+  st_simulada,
+  main = 'Distribución de St simulada',
+  n = 100, 
+  col = 'lightblue'
+)
+
+jarque.bera.test(st_simulada)
+```
+
+**b)** Define:
+
+$$Y_T = \ln S_T.$$
+
+```{r}
+YT <- log(st_simulada)
+
+hist(
+  YT,
+  main = 'Distribución de Yt',
+  n = 100, 
+  col = 'darkblue'
+)
+```
+
+Grafica su distribución y aplica Jarque–Bera.
+
+```{r}
+jarque.bera.test(YT)
+```
+
+**c)** Define:
+
+$$r_{0,T} = \ln\left( \frac{S_T}{S_0} \right).$$
+
+```{r}
+r_o_r <- log(st_simulada / So)
+
+hist(
+  r_o_r,
+  main = 'Distribución de r_{0,T}',
+  n = 100, 
+  col = 'blue'
+)
+```
+
+Grafica su distribución y aplica Jarque–Bera.
+
+```{r}
+jarque.bera.test(r_o_r)
+```
+
+**d)** ¿Qué variable debería ser Normal bajo GBM?
+
+::: respuesta
+Deben ser normales $Y_T = \ln S_T$ y $r_{0,T} = \ln(S_T/S_0)$. De la solución exacta,
+
+$$r_{0,T} = \ln\frac{S_T}{S_0} = \left(\mu - \tfrac12\sigma^2\right)T + \sigma W_T, \qquad W_T = \sqrt{T}Z \sim N(0, T),$$
+
+así que $r_{0,T} \sim N\!\left((\mu - \tfrac12\sigma^2)T,\ \sigma^2T\right)$ y $Y_T = \ln S_0 + r_{0,T} \sim N\!\left(\ln S_0 + (\mu - \tfrac12\sigma^2)T,\ \sigma^2T\right)$. Las dos son funciones lineales de un solo movimiento browniano.
+
+Las dos solo difieren en la constante $\ln S_0$. Sumar una constante no cambia la asimetría ni la curtosis, así que el estadístico de Jarque–Bera es idéntico: $JB = `r round(jarque.bera.test(YT)$statistic, 3)`$ con p-value `r round(jarque.bera.test(YT)$p.value, 3)`. No se rechaza la normalidad, como predice el modelo.
+
+La normalidad de los log-rendimientos es una **implicación del GBM**, no un hecho empírico garantizado por los mercados.
+:::
+
+**e)** ¿Qué variable debería ser lognormal?
+
+::: respuesta
+Debe ser lognormal $S_T$, el precio en nivel. Como $S_T = e^{Y_T}$ con $Y_T$ normal, $S_T$ es por definición lognormal. De ahí se siguen sus propiedades:
+
+- **Positividad:** $P(S_T > 0) = 1$.
+- **Asimetría a la derecha:** en la simulación, la asimetría de $S_T$ es `r round(skewness(st_simulada), 2)`.
+- **Orden de los centros:** moda \< mediana \< media, porque $S_0e^{(\mu - 3\sigma^2/2)T} < S_0e^{(\mu - \sigma^2/2)T} < S_0e^{\mu T}$.
+
+Por eso Jarque–Bera rechaza con fuerza la normalidad de $S_T$ ($JB = `r format(round(jarque.bera.test(st_simulada)$statistic), big.mark = ",")`$). Ese rechazo **confirma** el modelo, no lo contradice: el GBM genera log-rendimientos normales y precios lognormales.
+:::
+
+**f)** Compara los resultados simulados con los resultados empíricos del Problema 2. ¿Qué diferencia observas entre "lo que el modelo genera" y "lo que los datos reales muestran"?
+
+::: respuesta
+| Log-rendimientos | Jarque–Bera | p-value | Conclusión |
+|-----------------|------------------:|------------------:|-----------------|
+| Simulados (GBM) | `r round(jarque.bera.test(r_o_r)$statistic, 2)` | `r round(jarque.bera.test(r_o_r)$p.value, 3)` | Normales |
+| Reales (BBVA) | `r format(round(pruebas[[4]]$statistic, 1), big.mark = ",")` | \< 0.001 | No normales |
+
+**Lo que el modelo genera** es exactamente lo que se le impuso: incrementos brownianos independientes, $\mu$ y $\sigma$ constantes y trayectorias continuas. Por construcción, sus log-rendimientos son normales, simétricos, sin colas pesadas y sin agrupamiento de volatilidad.
+
+**Lo que muestran los datos** son los hechos estilizados:
+
+- colas pesadas, con curtosis `r round(kurtosis(r_log), 1)` contra 3;
+- asimetría negativa (`r round(skewness(r_log), 2)`);
+- volatilidad que cambia en el tiempo y se agrupa;
+- saltos como el de marzo de 2020, incompatibles con trayectorias continuas.
+
+La diferencia no está en la simulación: está en los **supuestos**. Los resultados formales valen lo que valen los supuestos que los generan. Bajo GBM, los log-rendimientos diarios también deberían ser normales, así que la comparación es válida aunque la simulación sea a un año.
+
+La consecuencia para el análisis de riesgo es que el GBM calibrado con la volatilidad histórica reproduce bien el centro de la distribución, pero **subestima la probabilidad de movimientos extremos**, sobre todo de caídas. Es un modelo de referencia, no una descripción completa del mercado.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 8. Euler–Maruyama vs. solución exacta
+
+Simula una trayectoria de un año usando la misma secuencia de shocks $Z_t$ para ambos métodos.
+
+**a)** Simula Euler–Maruyama:
+
+$$S_{t+\Delta t} \approx S_t + \mu S_t \Delta t + \sigma S_t \sqrt{\Delta t}\, Z_t.$$
+
+```{r}
+n_dias <- 252; z_simulacion <- rnorm(252); dt <- 1/n_dias
+```
+
+```{r simulacion_euler_maruyama}
+S_euler_maruyama <- numeric(n_dias + 1) 
+S_euler_maruyama[1] <- So
+
+for (i in 1:n_dias) {
+  S_euler_maruyama[i+1] <- S_euler_maruyama[i] + S_euler_maruyama[i] * mu_l * dt + sigma_anual_l * S_euler_maruyama[i] * sqrt(dt) * z_simulacion[i]
+}
+```
+
+**b)** Simula la transición exacta:
+
+$$S_{t+\Delta t} = S_t e^{ \left( \mu - \tfrac{1}{2}\sigma^2 \right) \Delta t + \sigma \sqrt{\Delta t}\, Z_t }.$$
+
+```{r}
+S_exacta <- numeric(n_dias + 1)
+S_exacta[1] <- So
+
+for (i in 1:n_dias) {
+  S_exacta[i+1] <- S_exacta[i] * exp((mu_l - 0.5 * sigma_anual_l^2) * dt + sigma_anual_l * sqrt(dt) * z_simulacion[i])
+}
+```
+
+**c)** Grafica ambas trayectorias en la misma figura.
+
+```{r}
+matplot(
+  cbind(S_euler_maruyama, S_exacta),
+  type = 'l',
+  lty  = c(1, 2),
+  col  = c('blue', 'red'),
+  xlab = 'Días de cotización',
+  ylab = 'Precio',
+  main = 'Solución exacta vs. Euler Maruyama'
+)
+
+legend(
+  'topleft', 
+  legend = c('Euler Maruyama', 'Exacta'),
+  col = c('blue', 'red'), 
+  lty = c(1, 2), 
+  bty = 'n',
+  cex = 0.8
+)
+```
+
+**d)** Calcula el error absoluto al final del horizonte:
+
+$$\left| S_T^{EM} - S_T^{\text{exact}} \right|.$$
+
+```{r}
+error_absoluto <- abs(
+  S_euler_maruyama[n_dias + 1] - S_exacta[n_dias + 1]
+)
+
+error_absoluto
+```
+
+**e)** Repite el ejercicio usando:
+
+$$\Delta t = \frac{1}{252}, \qquad \Delta t = \frac{1}{52}, \qquad \Delta t = \frac{1}{12}.$$
+
+```{r}
+pasos <- c(252, 52, 12)
+resultados <- data.frame(
+  n_pasos = pasos,
+  dt = 1 / pasos,
+  error_absoluto = NA_real_
+)
+
+par(mfrow = c(1, 1))
+
+for (j in seq_along(pasos)) {
+  n <- pasos[j]
+  dt <- 1 / n
+  z <- rnorm(n)  # Mismos shocks para ambos métodos
+  
+  S_em <- numeric(n + 1)
+  S_ex <- numeric(n + 1)
+  
+  S_em[1] <- So
+  S_ex[1] <- So
+  
+  for (i in seq_len(n)) {
+    S_em[i + 1] <- S_em[i] +
+      mu_l * S_em[i] * dt +
+      sigma_anual_l * S_em[i] * sqrt(dt) * z[i]
+    
+    S_ex[i + 1] <- S_ex[i] * exp(
+      (mu_l - 0.5 * sigma_anual_l^2) * dt +
+        sigma_anual_l * sqrt(dt) * z[i]
+    )
+  }
+  
+  resultados$error_absoluto[j] <- abs(S_em[n + 1] - S_ex[n + 1])
+  
+  matplot(
+    seq(0, 1, length.out = n + 1),
+    cbind(S_em, S_ex),
+    type = 'l', 
+    lty = c(1, 2), 
+    col = c('blue', 'red'),
+    xlab = 'Tiempo (años)', 
+    ylab = 'Precio',
+    main = paste0('dt = 1/', n)
+  )
+  
+  legend(
+    'topleft', 
+    legend = c('Euler Maruyama', 'Exacta'),
+    col = c('blue', 'red'), 
+    lty = c(1, 2), 
+    bty = 'n',
+    cex = 0.8
+  )
+}
+
+knitr::kable(resultados)
+```
+
+**f)** ¿Qué relación observas entre el tamaño del paso y el error?
+
+```{r}
+n_trayectorias <- 5000
+pasos <- c(252, 52, 12)
+
+error_medio <- sapply(pasos, function(n) {
+  dt   <- 1 / n
+  S_em <- rep(So, n_trayectorias)
+  S_ex <- rep(So, n_trayectorias)
+
+  for (i in seq_len(n)) {
+    z_i  <- rnorm(n_trayectorias)          # mismo shock para ambos métodos
+    S_em <- S_em + mu_l * S_em * dt + sigma_anual_l * S_em * sqrt(dt) * z_i
+    S_ex <- S_ex * exp((mu_l - 0.5 * sigma_anual_l^2) * dt + sigma_anual_l * sqrt(dt) * z_i)
+  }
+
+  mean(abs(S_em - S_ex))
+})
+
+tabla_8f <- data.frame(
+  n_pasos             = pasos,
+  dt                  = 1 / pasos,
+  error_medio         = error_medio,
+  error_entre_raiz_dt = error_medio / sqrt(1 / pasos)
+)
+
+knitr::kable(tabla_8f)
+
+plot(tabla_8f$dt, tabla_8f$error_medio, type = 'b', pch = 19, col = 'blue',
+     xlab = 'Δt (años)', ylab = 'Error absoluto medio en T = 1',
+     main = 'Error de Euler–Maruyama vs. tamaño de paso')
+grid()
+```
+
+::: respuesta
+**A mayor paso, mayor error.** Con una sola trayectoria (inciso e), los errores fueron `r paste(round(resultados$error_absoluto, 3), collapse = ", ")` para $\Delta t$ = 1/252, 1/52 y 1/12. Una sola realización depende mucho de los choques que salieron, por eso se promedió sobre `r format(n_trayectorias, big.mark = ",")` trayectorias. El error medio fue `r paste(round(tabla_8f$error_medio, 3), collapse = ", ")`, y el cociente $\text{error}/\sqrt{\Delta t}$ se mantiene casi constante (entre `r round(min(tabla_8f$error_entre_raiz_dt), 2)` y `r round(max(tabla_8f$error_entre_raiz_dt), 2)`):
+
+$$\text{error} \propto \sqrt{\Delta t}.$$
+
+Reducir el paso a la cuarta parte reduce el error aproximadamente a la mitad.
+
+**Por qué ocurre.** Con los mismos choques, un paso exacto multiplica por $e^{(\mu - \sigma^2/2)\Delta t + \sigma\sqrt{\Delta t}Z}$ y uno de Euler–Maruyama por $1 + \mu\Delta t + \sigma\sqrt{\Delta t}Z$. Al expandir la exponencial:
+
+$$e^{(\mu - \sigma^2/2)\Delta t + \sigma\sqrt{\Delta t}Z} = 1 + \mu\Delta t + \sigma\sqrt{\Delta t}Z + \tfrac12\sigma^2\Delta t\,(Z^2 - 1) + O(\Delta t^{3/2}).$$
+
+En cada paso, Euler–Maruyama omite el término $\tfrac12\sigma^2\Delta t(Z^2 - 1)$. Es precisamente el término de Itô que aparece porque $(dW_t)^2 = dt$: el término de segundo orden que el cálculo ordinario desprecia pero el estocástico no. Cada error es de orden $\Delta t$ con media cero. Al acumular $1/\Delta t$ pasos, se suman como variables aleatorias y su desviación estándar es de orden $\sqrt{1/\Delta t}\cdot\Delta t = \sqrt{\Delta t}$, que es justo lo que muestra la tabla.
+
+Cuando $\Delta t \to 0$, Euler–Maruyama converge a la solución exacta, pero lentamente. La transición exacta no tiene error de discretización: es exacta con cualquier tamaño de paso.
+:::
+
+**g)** Explica por qué la solución exacta preserva positividad y Euler–Maruyama no necesariamente.
+
+::: respuesta
+**Solución exacta.** Cada paso multiplica el precio por una exponencial:
+
+$$S_{t+\Delta t} = S_t \cdot \exp\!\left[\left(\mu - \tfrac12\sigma^2\right)\Delta t + \sigma\sqrt{\Delta t}\,Z_t\right].$$
+
+La exponencial es estrictamente positiva para cualquier valor de $Z_t$, por extremo que sea. Si $S_0 > 0$, todos los precios de la trayectoria son positivos, sin importar $\Delta t$. Es la misma razón por la que $S_T$ es lognormal: el modelo describe cambios proporcionales y trabaja en escala logarítmica.
+
+**Euler–Maruyama.** Cada paso multiplica el precio por un factor lineal en $Z_t$:
+
+$$S_{t+\Delta t} = S_t\left(1 + \mu\Delta t + \sigma\sqrt{\Delta t}\,Z_t\right).$$
+
+Ese factor es negativo cuando $Z_t < -\dfrac{1 + \mu\Delta t}{\sigma\sqrt{\Delta t}}$. Como la normal tiene soporte en toda la recta real, esa probabilidad siempre es positiva. Localmente, Euler–Maruyama se comporta como un movimiento browniano aritmético, que puede asignar probabilidad a valores negativos.
+
+Qué tan grave es depende de $\sigma$ y $\Delta t$:
+
+- Para BBVA con pasos mensuales, la probabilidad por paso es $\approx `r signif(pnorm(-(1 + mu_l / 12) / (sigma_anual_l * sqrt(1 / 12))), 2)`$: despreciable en la práctica.
+- Con los parámetros del Problema 9 ($\sigma = 0.65$) y un solo paso anual, sube a $\Phi(-1.15/0.65) \approx `r round(pnorm(-(1 + 0.15) / 0.65), 3)`$: casi 4 % de probabilidad de un precio negativo.
+
+Euler–Maruyama es una aproximación numérica que puede producir precios negativos con pasos gruesos o choques extremos. La transición exacta es estrictamente positiva siempre que $S_t > 0$.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 9. Horizonte temporal y probabilidad
+
+Considere ahora un activo hipotético con
+
+$$S_0 = 15, \qquad \mu = 0.15, \qquad \sigma = 0.65.$$
+
+Queremos estudiar:
+
+$$P(S_T > 18).$$
+
+```{r}
+So <- 15; mu <- 0.15; sigma <- 0.65
+```
+
+**a)** Calcula la probabilidad teórica para:
+
+$$T = \frac{1}{12}, \qquad T = 0.5, \qquad T = 1.$$
+
+```{r}
+Ts <- c(
+  '1 mes' = 1/12,
+  '6 meses' = 0.5,
+  '1 año' = 1
+)
+```
+
+```{r}
+z <- (log(18 / So) - (mu - 0.5 * sigma^2) * Ts) / (sigma * sqrt(Ts))
+
+probs <- pnorm(
+  z, 
+  mean = 0,
+  sd = 1, 
+  lower.tail = FALSE
+)
+
+tabla_9s <- data.frame(
+  Horizonte = names(Ts),
+  Probabilidad = unname(probs)
+)
+
+knitr::kable(tabla_9s)
+```
+
+**b)** Verifica cada resultado mediante Monte Carlo.
+
+```{r}
+prob_mc <- sapply(Ts, function(t) {
+  Z <- rnorm(1000000)
+  
+  ST <- So * exp(
+    (mu - 0.5 * sigma^2) * t + sigma * sqrt(t) * Z
+  )
+  
+  mean(ST > 18)
+})
+
+tabla_9b <- data.frame(
+  Horizonte = names(Ts),
+  Teorica = unname(probs),
+  Monte_Carlo = unname(prob_mc),
+  Error_absoluto = unname(abs(prob_mc - probs))
+)
+
+knitr::kable(tabla_9b)
+```
+
+**c)** Generaliza tu código para evaluar
+
+$$P(S_T > 18)$$
+
+```{r}
+meses <- 1:240
+Ts <- meses / 12
+
+z <- (log(18 / So) - (mu - 0.5 * sigma^2) * Ts) /
+  (sigma * sqrt(Ts))
+
+probabilidades <- pnorm(z, 
+                        mean = 0, 
+                        sd = 1,
+                        lower.tail = FALSE
+                        )
+
+tabla_9c <- data.frame(
+  Mes = meses,
+  Años = Ts,
+  Probabilidad = probabilidades
+)
+
+knitr::kable(tabla_9c[tabla_9c$Mes %% 12 == 0, ], row.names = FALSE)
+```
+
+para valores mensuales de $T$ desde 1 mes hasta 20 años.
+
+**d)** Construye una gráfica con:
+
+- $T$ en el eje horizontal y
+- $P(S_T > 18)$ en el eje vertical.
+
+```{r}
+plot(
+  Ts, probabilidades,
+  type = 'l',
+  col = 'blue',
+  lwd = 2,
+  xlab = 'T (años)',
+  ylab = 'P(St > 18)',
+  main = 'P(St > 18) a 20 años'
+)
+
+grid()
+```
+
+**e)** Describe la forma de la gráfica.
+
+::: respuesta
+La curva tiene forma de **joroba asimétrica**:
+
+- **Sube rápido en horizontes cortos.** Parte de `r round(probabilidades[1], 3)` a un mes. Cuando $T \to 0$ tiende a cero, porque $S_0 = 15 < 18$ y en muy poco tiempo el precio no alcanza a moverse lo suficiente.
+- **Llega a un máximo** de `r round(max(probabilidades), 4)` alrededor de $T \approx `r round(Ts[which.max(probabilidades)], 2)`$ años.
+- **Después baja lentamente**: `r round(probabilidades[Ts == 10], 3)` a 10 años y `r round(probabilidades[Ts == 20], 3)` a 20 años. Sigue bajando hacia cero, aunque muy despacio.
+
+El tramo de subida es corto y empinado, y el de bajada largo y suave. En ningún horizonte la probabilidad de terminar arriba de 18 supera el 38 %.
+:::
+
+**f)** ¿La probabilidad tiene que aumentar monótonamente con el tiempo? Justifica a partir de la fórmula del GBM y de los parámetros del problema.
+
+::: respuesta
+**No.** Bajo GBM,
+
+$$P(S_T > K) = 1 - \Phi\big(d(T)\big), \qquad d(T) = \frac{\ln(K/S_0) - (\mu - \tfrac12\sigma^2)T}{\sigma\sqrt{T}}.$$
+
+La probabilidad crece cuando $d(T)$ baja y decrece cuando $d(T)$ sube. Con $a = \ln(18/15) = `r round(log(18 / So), 4)`$ y $b = \mu - \tfrac12\sigma^2$:
+
+$$d(T) = \underbrace{\frac{a}{\sigma\sqrt{T}}}_{\text{efecto dispersión}} \; - \; \underbrace{\frac{b\sqrt{T}}{\sigma}}_{\text{efecto drift}}.$$
+
+La clave es el signo de $b$. Con estos parámetros,
+
+$$b = \mu - \tfrac12\sigma^2 = 0.15 - \tfrac12(0.65)^2 = `r round(mu - 0.5 * sigma^2, 5)` < 0.$$
+
+Aunque $\mu > 0$, la volatilidad es tan alta que la corrección de Itô vuelve **negativo** el drift del log-precio. Hay dos fuerzas opuestas:
+
+1.  **Efecto dispersión (domina al inicio).** $a/(\sigma\sqrt{T})$ decrece con $T$. La varianza $\sigma^2T$ crece y reparte más probabilidad hacia la cola derecha, lo que acerca al nivel 18.
+2.  **Efecto drift (domina después).** Como $b < 0$, el término $-b\sqrt{T}/\sigma = |b|\sqrt{T}/\sigma$ crece sin límite. La mediana, $S_0e^{bT}$, cae con el tiempo: a 20 años es `r round(So * exp((mu - 0.5 * sigma^2) * 20), 2)`, muy por debajo de 18.
+
+Al derivar $d(T)$ e igualar a cero se obtiene el punto de equilibrio:
+
+$$T^* = \frac{a}{|b|} = `r round(log(18 / So) / (0.5 * sigma^2 - mu), 3)` \text{ años}, \qquad P_{\max} = 1 - \Phi\!\left(\frac{2\sqrt{a|b|}}{\sigma}\right) = `r round(1 - pnorm(2 * sqrt(log(18 / So) * (0.5 * sigma^2 - mu)) / sigma), 4)`,$$
+
+que coincide con el máximo de la gráfica. Para $T > T^*$, $d(T) \to \infty$ y $P(S_T > 18) \to 0$.
+
+La paradoja es que $E[S_T] = 15e^{0.15T}$ crece exponencialmente (`r round(15 * exp(0.15 * 20), 1)` a 20 años), mientras la probabilidad de superar 18 tiende a cero. La media está dominada por escenarios muy raros y muy grandes de la cola derecha de la lognormal, mientras que la trayectoria típica, descrita por la mediana, cae.
+
+La monotonía depende del signo de $\mu - \tfrac12\sigma^2$: si fuera positivo (por ejemplo, con $\sigma$ menor), ambos efectos empujarían en la misma dirección y la probabilidad crecería monótonamente hacia 1.
+:::
+
+------------------------------------------------------------------------
+
+## Problema 10. Reflexión final
+
+Responde de manera argumentada.
+
+**a)** ¿Qué diferencia existe entre estimar un modelo y validar un modelo?
+
+::: respuesta
+**Estimar** es asignar valores a los parámetros *suponiendo que el modelo es correcto*. En el Problema 1 supusimos GBM y, a partir de $E[r_{\Delta t}] = (\mu - \tfrac12\sigma^2)\Delta t$ y $Var(r_{\Delta t}) = \sigma^2\Delta t$, obtuvimos $\hat\mu = `r round(mu_l, 3)`$ y $\hat\sigma = `r round(sigma_anual_l, 3)`$. La estimación siempre produce un número, aunque el modelo esté equivocado.
+
+**Validar** es verificar si las *implicaciones* del modelo son compatibles con los datos. El GBM implica log-rendimientos normales, independientes y con volatilidad constante. Lo contrastamos con Jarque–Bera (Problema 2), con los hechos estilizados (2h) y comparando lo que el modelo genera contra lo que muestran los datos (7f). En BBVA, la validación falla en la normalidad y en la volatilidad constante.
+
+En resumen, estimar responde "¿qué valores toman $\mu$ y $\sigma$ si el modelo es cierto?" y validar responde "¿es razonable creer que el modelo es cierto?". Un parámetro bien estimado de un modelo inválido sigue dando conclusiones equivocadas.
+:::
+
+**b)** ¿Qué parte del GBM parece razonable para el activo que analizaste?
+
+::: respuesta
+- **Cambios relativos.** Modelar $dS_t/S_t$ en lugar de $dS_t$ es adecuado: BBVA pasó de unos `r round(min(precio), 2)` a `r round(max(precio), 2)` dólares, y un movimiento de un dólar no significa lo mismo en ambos niveles. Que el drift y la volatilidad escalen con el precio es coherente con eso.
+- **Precios positivos.** La solución exacta nunca genera precios negativos, a diferencia de un modelo aritmético.
+- **Poca dependencia lineal.** En la ACF de los log-rendimientos (2h) las autocorrelaciones son pequeñas (ninguna supera `r round(max(abs(acf_r$acf[-1])), 2)` en valor absoluto), lo cual es coherente con incrementos que no se pueden predecir linealmente, como en una caminata aleatoria.
+- **Centro de la distribución.** Fuera de los días extremos, los log-rendimientos se concentran alrededor de su media con una dispersión razonablemente descrita por $\hat\sigma$. En los años sin crisis, la volatilidad anual se movió entre `r round(min(vol_por_anio), 2)` y `r round(sort(vol_por_anio, decreasing = TRUE)[2], 2)`.
+- **Utilidad práctica.** Da fórmulas cerradas para la media, la varianza, la mediana, los intervalos y las probabilidades, y permite simular exactamente.
+:::
+
+**c)** ¿Qué supuestos parecen más alejados de los datos reales?
+
+::: respuesta
+1.  **Normalidad de los log-rendimientos.** Es el más claramente rechazado: $JB = `r format(round(pruebas[[4]]$statistic), big.mark = ",")`$, curtosis de `r round(hechos$Valor[2], 1)` y `r round(hechos$Valor[3] / hechos$Valor[4], 1)` veces más días extremos de los que predice la normal.
+2.  **Volatilidad constante.** La volatilidad anual varió de `r round(min(vol_por_anio), 2)` a `r round(max(vol_por_anio), 2)` y la ACF de los rendimientos al cuadrado (2h) tiene `r fuera_r2` de 30 rezagos fuera de las bandas: hay clustering.
+3.  **Independencia de los incrementos.** No hay correlación lineal, pero sí dependencia en la volatilidad. No estar correlacionados no significa ser independientes.
+4.  **Simetría.** La asimetría es negativa (`r round(hechos$Valor[1], 2)`): las caídas extremas son más frecuentes que las subidas extremas.
+5.  **Trayectorias continuas.** Caídas de `r round(abs(100 * min(r_log)), 1)` % en un día (marzo de 2020) se parecen más a un salto que a un movimiento browniano.
+6.  **Drift constante.** $\hat\mu$ refleja un periodo muy particular de crecimiento de BBVA, y su error estándar ($\approx `r round(sigma_anual_l / sqrt(length(log_rets) / 252), 2)`$) es del mismo orden que la estimación. No hay garantía de que se mantenga.
+:::
+
+**d)** ¿Qué aprendiste al comparar la aproximación local $dS$ con la solución exacta?
+
+::: respuesta
+- **El cálculo ordinario no alcanza.** En cálculo ordinario, $\int dS/S = \ln S$. Con un proceso estocástico, el término $(dW_t)^2 = dt$ sobrevive y aparece la corrección $-\tfrac12\sigma^2$. Ignorarla es exactamente el error de la aproximación local.
+- **Media y mediana son cosas distintas.** $\mu$ gobierna la media, $S_0e^{\mu T}$, mientras que $\mu - \tfrac12\sigma^2$ gobierna la mediana y la trayectoria típica. El Problema 9 lo muestra de forma extrema: la media crece mientras la probabilidad de subir tiende a cero.
+- **La aproximación local solo funciona en intervalos cortos.** A 5 días las probabilidades difieren en `r round(p3_teo_exacta - p3_teo_aprox, 3)`, y a un año en `r round(p4_teo_exacta - p4_teo_aprox, 3)`. La brecha en los valores $z$ es $\sigma\sqrt{T}/2$.
+- **Discretizar es aproximar.** Euler–Maruyama repite la aproximación local paso a paso: converge a la solución exacta cuando $\Delta t \to 0$, con error proporcional a $\sqrt{\Delta t}$, y puede producir precios negativos. La transición exacta no tiene error de discretización.
+- **Normal frente a lognormal.** La aproximación local trata el cambio de precio como normal y simétrico; la exacta produce precios lognormales, positivos y sesgados a la derecha. Con horizontes largos, la diferencia es fundamental.
+:::
+
+**e)** Explica por qué un modelo puede ser útil aun cuando sus supuestos no describan perfectamente la realidad.
+
+::: respuesta
+Un modelo simplifica la realidad a propósito, y su valor depende de qué gana y qué pierde con cada simplificación. El GBM es útil como **modelo de referencia** porque:
+
+- **Es formal e interpretable.** Cada parámetro tiene un significado claro: $\mu$ es el rendimiento esperado relativo y $\sigma$ la incertidumbre.
+- **Es manejable.** Tiene solución cerrada, distribución conocida y fórmulas explícitas para probabilidades e intervalos, y permite simular exactamente.
+- **Aísla mecanismos.** Deja ver con claridad efectos que existen en modelos más complejos, como la corrección de Itô, la diferencia entre media y mediana, el crecimiento de la incertidumbre con $\sqrt{T}$ y la asimetría de los precios.
+- **Sirve de base.** Los modelos más realistas (volatilidad estocástica, saltos, colas pesadas) se construyen modificando los supuestos del GBM. Saber dónde falla indica qué hay que agregar.
+- **Permite comparar.** Da un lenguaje común para comparar activos y horizontes, y sirve como primera aproximación para el centro de la distribución.
+
+La utilidad exige conocer los límites. En este caso, el GBM subestima el riesgo de eventos extremos, así que sus probabilidades de cola deben complementarse con medidas empíricas o pruebas de estrés. Un modelo simple que se sabe dónde falla es más útil que uno complejo que nadie entiende.
+:::
+
+**f)** Resume la práctica completando:
+
+$$\text{datos} \rightarrow \text{parámetros} \rightarrow \text{modelo} \rightarrow \text{simulación} \rightarrow \text{evaluación}$$
+
+con una frase para cada etapa.
+
+::: respuesta
+- **Datos:** descargamos `r round(length(log_rets) / 252, 1)` años de precios ajustados de BBVA y los transformamos en log-rendimientos, que no dependen de la escala y se suman en el tiempo.
+- **Parámetros:** con la media y la desviación estándar de los log-rendimientos, más la corrección de Itô, estimamos $\hat\mu \approx `r round(mu_l, 3)`$ y $\hat\sigma \approx `r round(sigma_anual_l, 3)`$ anuales.
+- **Modelo:** bajo GBM, la solución exacta implica log-rendimientos normales y precios lognormales, con fórmulas cerradas para la media, la varianza, la mediana, los intervalos y las probabilidades.
+- **Simulación:** con un millón de escenarios verificamos las fórmulas, comparamos la aproximación local con la exacta y medimos cómo el error de Euler–Maruyama depende del tamaño de paso.
+- **Evaluación:** la simulación reproduce la teoría, pero los datos reales (colas pesadas, asimetría y volatilidad cambiante) rechazan la normalidad. El GBM es un modelo de referencia útil, no una descripción completa del riesgo de BBVA.
+:::
+
+------------------------------------------------------------------------
+
+### Idea central
+
+La simulación no sustituye a la teoría y la teoría no sustituye a los datos: las tres piezas —datos, modelo y simulación— deben utilizarse conjuntamente para analizar el riesgo financiero.
